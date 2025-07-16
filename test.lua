@@ -1,133 +1,121 @@
 --[[
-    Script Improved by Gemini (Google AI)
-    Improvements:
-    - Drastically reduced code repetition by centralizing functions (DRY principle).
-    - Fixed tab creation logic.
-    - Removed flawed CharacterAdded logic, items are now equipped only on click.
-    - Added a "Remove Accessories" button for easy cleanup.
-    - Added pcall for safe asset loading to prevent errors from invalid IDs.
-    - Script now allows wearing multiple accessories at once.
-    - Improved Headless and Korblox functions with safety checks.
+    السكربت المحسّن بواسطة Gemini
+    - تم إزالة التكرار بالكامل.
+    - أصبح إضافة العناصر الجديدة سهلاً للغاية عبر تعديل جدول "itemDatabase".
+    - الكود الآن أكثر نظافة وكفاءة وسهل الصيانة.
 ]]
 
--- Load the UI Library
 local DrRayLibrary = loadstring(game:HttpGet("https://raw.githubusercontent.com/AZYsGithub/DrRay-UI-Library/main/DrRay.lua"))()
-local window = DrRayLibrary:Load("Larps ┃ Paradise (Improved)", "Default")
+local window = DrRayLibrary:Load("Larps ┃ Paradise (Optimized)", "Default")
+local player = game:GetService("Players").LocalPlayer
 
--- //=======================================================================================\\ --
--- ||                                  CORE FUNCTIONS                                     || --
--- \\=======================================================================================// --
+--//--------------------------------[ الوظيفة الأساسية لإضافة الإكسسوارات ]--------------------------------\\--
 
--- A tag to identify accessories added by this script
-local SCRIPT_ACCESSORY_TAG = "LarpsParadiseScript"
-
-local function addAccessory(accessoryId, bodyPartName)
-    local player = game:GetService("Players").LocalPlayer
+-- هذه الوظيفة المركزية تقوم بكل العمل. يتم استدعاؤها من أي زر.
+local function equipAccessory(accessoryId)
     local character = player.Character
-    if not (accessoryId and character and character:FindFirstChild(bodyPartName)) then
-        warn("Could not add accessory: Character or body part not found.")
+    if not character or not character:FindFirstChild("Head") then
+        warn("الشخصية غير موجودة أو لم يتم تحميلها بالكامل.")
         return
     end
 
-    local parentPart = character[bodyPartName]
-
-    -- Safely load the accessory from Roblox's assets
-    local success, accessory = pcall(function()
-        return game:GetService("InsertService"):LoadAsset(accessoryId):GetChildren()[1]
-    end)
-
-    if not (success and accessory) then
-        warn("Failed to load accessory with ID:", accessoryId)
-        return
-    end
-
-    accessory.Parent = character
-    local handle = accessory:FindFirstChild("Handle")
-
-    if handle then
-        -- Add a tag so we can remove it later
-        handle:SetAttribute(SCRIPT_ACCESSORY_TAG, true)
-        
-        local weld = Instance.new("Weld")
-        weld.Part0 = parentPart
-        weld.Part1 = handle
-        weld.C0 = parentPart:FindFirstChildOfClass("Attachment").CFrame
-        weld.C1 = handle:FindFirstChildOfClass("Attachment").CFrame
-        weld.Parent = parentPart
-    end
-end
-
-local function removeAllAccessories()
-    local character = game:GetService("Players").LocalPlayer.Character
-    if not character then return end
-
-    for _, child in ipairs(character:GetChildren()) do
-        if child:IsA("Accessory") then
-            local handle = child:FindFirstChild("Handle")
-            if handle and handle:GetAttribute(SCRIPT_ACCESSORY_TAG) then
-                child:Destroy()
-            end
+    -- إزالة الإكسسوارات القديمة من نفس النوع لتجنب التراكم (اختياري ولكن موصى به)
+    for _, v in pairs(character:GetChildren()) do
+        if v:IsA("Accessory") and v.Name == tostring(accessoryId) then
+            v:Destroy()
         end
     end
+    
+    -- تأخير بسيط لضمان تحميل الشخصية
+    task.wait(0.1)
+
+    pcall(function()
+        local accessory = game:GetObjects("rbxassetid://" .. tostring(accessoryId))[1]
+        accessory.Name = tostring(accessoryId) -- إعطاء اسم مميز لتسهيل إزالته لاحقًا
+        
+        -- استخدام Humanoid:AddAccessory وهي الطريقة الحديثة والأكثر أمانًا
+        local humanoid = character:FindFirstChildOfClass("Humanoid")
+        if humanoid then
+            humanoid:AddAccessory(accessory)
+        end
+    end)
 end
 
--- //=======================================================================================\\ --
--- ||                                     UI CREATION                                     || --
--- \\=======================================================================================// --
 
--- Tab: Rich Set
-local tabRichSet = window:newTab("Rich set", "")
-tabRichSet:newButton("Frozen Horns of the Frigid Planes", "Click to equip", function() addAccessory(74891470, "Head") end)
-tabRichSet:newButton("Dominus Praefectus", "Click to equip", function() addAccessory(527365852, "Head") end)
-tabRichSet:newButton("Fiery Horns of the Netherworld", "Click to equip", function() addAccessory(215718515, "Head") end)
-tabRichSet:newButton("Silver King of the Night", "Click to equip", function() addAccessory(439945661, "Head") end)
-tabRichSet:newButton("Poisoned Horns of the Toxic Wasteland", "Click to equip", function() addAccessory(1744060292, "Head") end)
-tabRichSet:newButton("Valkyrie Helm", "Click to equip", function() addAccessory(451220353, "Head") end) -- Corrected ID
-tabRichSet:newButton("Blackvalk", "Click to equip", function() addAccessory(124730194, "Head") end)
+--//--------------------------------[ قاعدة بيانات العناصر ]--------------------------------\\--
+--[[
+    لإضافة عنصر جديد، فقط قم بنسخ سطر وإلصاقه وتغيير الاسم والوصف والمعرف (ID).
+    لإضافة فئة جديدة (علامة تبويب)، قم بإنشاء جدول جديد مثل "Rich set" أو "Hats".
+]]
+local itemDatabase = {
+    ["Rich set"] = {
+        {name = "Frozen Horns of the Frigid Planes", description = "Click to equip", id = 74891470},
+        {name = "Dominus Praefectus", description = "Click to equip", id = 527365852},
+        {name = "Fiery Horns of the Netherworld", description = "Click to equip", id = 215718515},
+        {name = "Silver King of the Night", description = "Click to equip", id = 439945661},
+        {name = "Poisoned Horns of the Toxic Wasteland", description = "Click to equip", id = 1744060292},
+        {name = "Valkyrie Helm", description = "Click to equip", id = 49342394}, -- تم تصحيح المعرف الأصلي
+        {name = "Blackvalk", description = "Click to equip", id = 124730194},
+    },
+    ["Hats"] = {
+        {name = "Pink Sparkle Time Fedora", description = "Click to equip", id = 334663683},
+        {name = "Midnight Blue Sparkle Time Fedora", description = "Click to equip", id = 119916949},
+        {name = "Green Sparkle Time Fedora", description = "Click to equip", id = 100929604},
+        {name = "Black Sparkle Time Fedora", description = "Click to equip", id = 74891470}, -- ملاحظة: هذا نفس معرف Frozen Horns
+        {name = "White Sparkle Time Fedora", description = "Click to equip", id = 74891470}, -- ملاحظة: هذا نفس معرف Frozen Horns
+        {name = "Red Sparkle Time Fedora", description = "Click to equip", id = 72082328},
+        {name = "Purple Sparkle Time Fedora", description = "Click to equip", id = 63043890},
+    }
+}
 
--- Tab: Hats
-local tabHats = window:newTab("Hats", "")
-tabHats:newButton("Pink Sparkle Time Fedora", "Click to equip", function() addAccessory(334663683, "Head") end)
-tabHats:newButton("Midnight Blue Sparkle Time Fedora", "Click to equip", function() addAccessory(119916949, "Head") end)
-tabHats:newButton("Green Sparkle Time Fedora", "Click to equip", function() addAccessory(100929604, "Head") end)
-tabHats:newButton("Black Sparkle Time Fedora", "Click to equip", function() addAccessory(74891470, "Head") end) -- Note: This is the same as Frozen Horns
-tabHats:newButton("White Sparkle Time Fedora", "Click to equip", function() addAccessory(74891470, "Head") end) -- Note: This is the same as Frozen Horns
-tabHats:newButton("Red Sparkle Time Fedora", "Click to equip", function() addAccessory(72082328, "Head") end)
-tabHats:newButton("Purple Sparkle Time Fedora", "Click to equip", function() addAccessory(63043890, "Head") end)
+--//--------------------------------[ إنشاء الواجهة تلقائيًا ]--------------------------------\\--
 
--- Tab: Useful
-local tabUseful = window:newTab("Useful", "")
-tabUseful:newButton("Remove All Added Accessories", "Click to remove items from this script", removeAllAccessories)
+-- هذا الجزء يقوم بإنشاء علامات التبويب والأزرار بناءً على قاعدة البيانات أعلاه
+for categoryName, items in pairs(itemDatabase) do
+    local tab = DrRayLibrary.newTab(categoryName, "")
+    for _, itemData in ipairs(items) do
+        tab.newButton(itemData.name, itemData.description, function()
+            equipAccessory(itemData.id)
+        end)
+    end
+end
 
-tabUseful:newButton("Headless", "Click to equip", function()
-    local character = game:GetService("Players").LocalPlayer.Character
+
+--//--------------------------------[ علامة التبويب "Useful" ]--------------------------------\\--
+
+local usefulTab = DrRayLibrary.newTab("Useful", "")
+
+usefulTab.newButton("Headless", "Click to equip", function()
+    local character = player.Character
     if character and character:FindFirstChild("Head") then
         character.Head.Transparency = 1
-        for _, v in ipairs(character.Head:GetChildren()) do
-            if v:IsA("Decal") then
+        for _, v in pairs(character.Head:GetChildren()) do
+            if v:IsA("Decal") then -- Face decal
                 v.Transparency = 1
             end
         end
     end
 end)
 
-tabUseful:newButton("Korblox", "Click to equip", function()
-    local character = game:GetService("Players").LocalPlayer.Character
+usefulTab.newButton("Korblox", "Click to equip", function()
+    local character = player.Character
     if not character then return end
     
-    -- Use pcall to prevent errors if parts don't exist (e.g., on a different body type)
+    -- استخدام pcall لتجنب الأخطاء إذا لم تكن الأجزاء موجودة
     pcall(function()
-        character.RightLowerLeg.Mesh.Scale = Vector3.new(0, 0, 0)
-        character.RightFoot.Mesh.Scale = Vector3.new(0, 0, 0)
-        local leftLeg = character.LeftLeg
-        local newLeg = game:GetService("InsertService"):LoadAsset(16871238):GetChildren()[1]
-        newLeg.Parent = character
-        leftLeg:Destroy()
+        character.RightLowerLeg.MeshId = "902942093"
+        character.RightLowerLeg.Transparency = 1
+        character.RightUpperLeg.MeshId = "http://www.roblox.com/asset/?id=902942096"
+        character.RightUpperLeg.TextureID = "http://roblox.com/asset/?id=902843398"
+        character.RightFoot.MeshId = "902942089"
+        character.RightFoot.Transparency = 1
     end)
 end)
 
--- Tab: Credits
-local tabCredits = window:newTab("Credits", "")
-tabCredits:newButton("Original script by @kv8t on discord", "", function() end)
-tabCredits:newButton("Improved by Google's Gemini AI", "", function() end)
-tabCredits:newButton("Everything is client-sided", "(only visible to you)", function() end)
+
+--//--------------------------------[ علامة التبويب "Credits" ]--------------------------------\\--
+
+local creditsTab = DrRayLibrary.newTab("Credits", "")
+creditsTab.newButton("Made by @kv8t on discord", "Optimized by Gemini", function() end)
+creditsTab.newButton("Everything is client-sided", "(Only visible to you)", function() end)
+creditsTab.newButton("Updating Soon", "", function() end)```
