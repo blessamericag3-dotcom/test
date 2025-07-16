@@ -5,7 +5,7 @@
     2.  Created a centralized function 'equipAccessorySet' to handle equipping items.
     3.  Correctly handled the CharacterAdded event to connect only once, which re-equips the last chosen set on respawn.
     4.  Organized tab creation to avoid re-declaring them.
-    5.  Added a "Reset Character" button to reload the character and remove all script-added items.
+    5.  Added a "Reset Character" button to the "Useful" tab.
 ]]
 
 local DrRayLibrary = loadstring(game:HttpGet("https://raw.githubusercontent.com/AZYsGithub/DrRay-UI-Library/main/DrRay.lua"))()
@@ -74,7 +74,7 @@ local function equipAccessorySet(character, accessorySet)
     -- Store the set for respawning
     lastEquippedSet = accessorySet
     
-    task.wait(EQUIP_DELAY) -- Use task.wait for better performance
+    wait(EQUIP_DELAY) -- Wait for the character to be ready
 
     -- Equip Head accessories
     if accessorySet.Head and character:FindFirstChild("Head") then
@@ -143,7 +143,7 @@ end)
 
 --//-------------------------- UI CREATION: HATS --------------------------\\--
 
-local hatsTab = DrRayLibrary.newTab("Hats", "")
+local hatsTab = DrRayLibrary.newTab("Hats", "") -- Use a new variable for the new tab
 
 hatsTab.newButton("Pink Sparkle Time Fedora", "Click to equip", function()
     onEquipButtonPressed({ Head = {334663683}, Torso = {} })
@@ -204,12 +204,17 @@ usefulTab.newButton("Korblox", "Click to equip", function()
     end
 end)
 
--- ### RESET BUTTON ADDED HERE ###
-usefulTab.newButton("Reset Character", "Removes all items and resets", function()
-    -- Clear the saved set so nothing gets re-equipped on the new character
+--[[
+    NEW BUTTON ADDED HERE
+    This button resets the character by clearing the last equipped items
+    and reloading the character. This is the cleanest way to remove all
+    client-sided accessories and modifications.
+]]
+usefulTab.newButton("Reset Character", "Removes all items", function()
+    -- Clear the saved items so they don't re-equip on respawn
     lastEquippedSet = { Head = {}, Torso = {} }
     
-    -- Reload the character, which is the most effective way to reset all visual changes.
+    -- Reload the character to reset it to its default state
     if Player.Character then
         Player:LoadCharacter()
     end
@@ -221,10 +226,13 @@ end)
 local creditsTab = DrRayLibrary.newTab("Credits", "")
 
 creditsTab.newButton("Made by @kv8t on discord", "", function()
+    -- Empty function
 end)
 
 creditsTab.newButton("Everything is client sided (only visable to you)", "", function()
+    -- Empty function
 end)
 
 creditsTab.newButton("Updating Soon", "", function()
+    -- Empty function
 end)
