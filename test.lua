@@ -74,7 +74,7 @@ local function equipAccessorySet(character, accessorySet)
     -- Store the set for respawning
     lastEquippedSet = accessorySet
     
-    wait(EQUIP_DELAY) -- Wait for the character to be ready
+    task.wait(EQUIP_DELAY) -- Use task.wait for better performance
 
     -- Equip Head accessories
     if accessorySet.Head and character:FindFirstChild("Head") then
@@ -95,7 +95,7 @@ end
 -- Connect to CharacterAdded event ONCE to handle respawns
 Player.CharacterAdded:Connect(function(character)
     -- Wait for the character to fully load and then equip the last set
-    character:WaitForChild("Humanoid") 
+    character.ChildAdded:Wait() 
     if (lastEquippedSet.Head and #lastEquippedSet.Head > 0) or (lastEquippedSet.Torso and #lastEquippedSet.Torso > 0) then
         equipAccessorySet(character, lastEquippedSet)
     end
@@ -103,12 +103,7 @@ end)
 
 -- Function to be called by buttons
 local function onEquipButtonPressed(accessorySet)
-    -- Reload character to clear old items before equipping new ones
     if Player.Character then
-        local oldCFrame = Player.Character:GetPrimaryPartCFrame()
-        Player:LoadCharacter()
-        Player.CharacterAdded:Wait()
-        Player.Character:SetPrimaryPartCFrame(oldCFrame)
         equipAccessorySet(Player.Character, accessorySet)
     end
 end
@@ -209,12 +204,12 @@ usefulTab.newButton("Korblox", "Click to equip", function()
     end
 end)
 
--- NEW RESET BUTTON
-usefulTab.newButton("Reset Character", "Removes all items and resets appearance", function()
+-- ### RESET BUTTON ADDED HERE ###
+usefulTab.newButton("Reset Character", "Removes all items and resets", function()
     -- Clear the saved set so nothing gets re-equipped on the new character
     lastEquippedSet = { Head = {}, Torso = {} }
     
-    -- Reload the character. This is the most effective way to reset all visual changes.
+    -- Reload the character, which is the most effective way to reset all visual changes.
     if Player.Character then
         Player:LoadCharacter()
     end
@@ -225,6 +220,11 @@ end)
 
 local creditsTab = DrRayLibrary.newTab("Credits", "")
 
-creditsTab.newButton("Made by @kv8t on discord", "", function() end)
-creditsTab.newButton("Everything is client sided (only visable to you)", "", function() end)
-creditsTab.newButton("Updating Soon", "", function() end)
+creditsTab.newButton("Made by @kv8t on discord", "", function()
+end)
+
+creditsTab.newButton("Everything is client sided (only visable to you)", "", function()
+end)
+
+creditsTab.newButton("Updating Soon", "", function()
+end)
