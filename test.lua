@@ -95,7 +95,7 @@ end
 -- Connect to CharacterAdded event ONCE to handle respawns
 Player.CharacterAdded:Connect(function(character)
     -- Wait for the character to fully load and then equip the last set
-    character.ChildAdded:Wait() 
+    character:WaitForChild("Humanoid") 
     if (lastEquippedSet.Head and #lastEquippedSet.Head > 0) or (lastEquippedSet.Torso and #lastEquippedSet.Torso > 0) then
         equipAccessorySet(character, lastEquippedSet)
     end
@@ -103,7 +103,12 @@ end)
 
 -- Function to be called by buttons
 local function onEquipButtonPressed(accessorySet)
+    -- Reload character to clear old items before equipping new ones
     if Player.Character then
+        local oldCFrame = Player.Character:GetPrimaryPartCFrame()
+        Player:LoadCharacter()
+        Player.CharacterAdded:Wait()
+        Player.Character:SetPrimaryPartCFrame(oldCFrame)
         equipAccessorySet(Player.Character, accessorySet)
     end
 end
@@ -143,7 +148,7 @@ end)
 
 --//-------------------------- UI CREATION: HATS --------------------------\\--
 
-local hatsTab = DrRayLibrary.newTab("Hats", "") -- Use a new variable for the new tab
+local hatsTab = DrRayLibrary.newTab("Hats", "")
 
 hatsTab.newButton("Pink Sparkle Time Fedora", "Click to equip", function()
     onEquipButtonPressed({ Head = {334663683}, Torso = {} })
@@ -220,14 +225,6 @@ end)
 
 local creditsTab = DrRayLibrary.newTab("Credits", "")
 
-creditsTab.newButton("Made by @kv8t on discord", "", function()
-    -- Empty function
-end)
-
-creditsTab.newButton("Everything is client sided (only visable to you)", "", function()
-    -- Empty function
-end)
-
-creditsTab.newButton("Updating Soon", "", function()
-    -- Empty function
-end)
+creditsTab.newButton("Made by @kv8t on discord", "", function() end)
+creditsTab.newButton("Everything is client sided (only visable to you)", "", function() end)
+creditsTab.newButton("Updating Soon", "", function() end)
