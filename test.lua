@@ -5,13 +5,14 @@
     2.  Created a centralized function 'equipAccessorySet' to handle equipping items.
     3.  Correctly handled the CharacterAdded event to connect only once, which re-equips the last chosen set on respawn.
     4.  Organized tab creation to avoid re-declaring them.
+    5.  Added a "Reset Character" button to reload the character and remove all script-added items.
 ]]
 
 local DrRayLibrary = loadstring(game:HttpGet("https://raw.githubusercontent.com/AZYsGithub/DrRay-UI-Library/main/DrRay.lua"))()
 local window = DrRayLibrary:Load("Larps ┃ Paradise", "Default")
 
 local Player = game.Players.LocalPlayer
-local lastEquippedSet = {}
+local lastEquippedSet = { Head = {}, Torso = {} } -- Initialize empty
 local EQUIP_DELAY = 1 -- Time to wait before equipping items
 
 --//-------------------------- UTILITY FUNCTIONS (Defined once) --------------------------\\--
@@ -95,7 +96,7 @@ end
 Player.CharacterAdded:Connect(function(character)
     -- Wait for the character to fully load and then equip the last set
     character.ChildAdded:Wait() 
-    if #lastEquippedSet.Head > 0 or #lastEquippedSet.Torso > 0 then
+    if (lastEquippedSet.Head and #lastEquippedSet.Head > 0) or (lastEquippedSet.Torso and #lastEquippedSet.Torso > 0) then
         equipAccessorySet(character, lastEquippedSet)
     end
 end)
@@ -200,6 +201,17 @@ usefulTab.newButton("Korblox", "Click to equip", function()
             char.RightFoot.MeshId = "902942089"
             char.RightFoot.Transparency = 1
         end)
+    end
+end)
+
+-- NEW RESET BUTTON
+usefulTab.newButton("Reset Character", "Removes all items and resets appearance", function()
+    -- Clear the saved set so nothing gets re-equipped on the new character
+    lastEquippedSet = { Head = {}, Torso = {} }
+    
+    -- Reload the character. This is the most effective way to reset all visual changes.
+    if Player.Character then
+        Player:LoadCharacter()
     end
 end)
 
