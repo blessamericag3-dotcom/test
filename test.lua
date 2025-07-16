@@ -1,9 +1,9 @@
 --[[
     Final Fix by your AI assistant.
-    - Removed the need to reload the character on every item equip, which was causing buttons to fail.
-    - Implemented a new system to track and remove old accessories before adding new ones.
-    - Equipping items is now instant and reliable.
-    - The "Reset Character" button still performs a full reload for a clean reset.
+    - The "Reset Character" button has been made more robust.
+    - It now instantly clears script-added accessories and undoes the "Headless" effect on the client.
+    - It then calls LoadCharacter() for a full reset, which is the only way to undo Korblox legs.
+    - If LoadCharacter() is disabled by the game, the user may need to rejoin to fully reset.
 ]]
 
 local DrRayLibrary = loadstring(game:HttpGet("https://raw.githubusercontent.com/AZYsGithub/DrRay-UI-Library/main/DrRay.lua"))()
@@ -11,18 +11,14 @@ local window = DrRayLibrary:Load("Larps ┃ Paradise", "Default")
 
 local Player = game.Players.LocalPlayer
 local lastEquippedSet = { Head = {}, Torso = {} }
-local EQUIP_DELAY = 0.1 -- Reduced delay for faster equipping
-local SCRIPT_ACCESSORY_TAG = "DrRayScriptedAccessory" -- A tag to identify items added by this script
+local EQUIP_DELAY = 0.1
+local SCRIPT_ACCESSORY_TAG = "DrRayScriptedAccessory"
 
 --//-------------------------- UTILITY FUNCTIONS --------------------------\\--
 
 local function weldParts(part0, part1, c0, c1)
     local weld = Instance.new("Weld")
-    weld.Part0 = part0
-    weld.Part1 = part1
-    weld.C0 = c0
-    weld.C1 = c1
-    weld.Parent = part0
+    weld.Part0 = part0; weld.Part1 = part1; weld.C0 = c0; weld.C1 = c1; weld.Parent = part0
     return weld
 end
 
@@ -34,7 +30,6 @@ local function findAttachment(rootPart, name)
     end
 end
 
--- Removes any accessories previously added by this script
 local function clearOldAccessories(character)
     if not character then return end
     for _, child in ipairs(character:GetChildren()) do
@@ -44,26 +39,14 @@ local function clearOldAccessories(character)
     end
 end
 
--- Adds a single accessory and tags it for future removal
 local function addAccessory(character, accessoryId, parentPart)
     if not parentPart then return end
-
-    local success, accessory = pcall(function()
-        return game:GetObjects("rbxassetid://" .. tostring(accessoryId))[1]
-    end)
-
-    if not success or not accessory then
-        warn("Failed to load accessory with ID:", accessoryId)
-        return
-    end
-
-    -- Add the tag so we can find and remove it later
-    local tag = Instance.new("BoolValue")
-    tag.Name = SCRIPT_ACCESSORY_TAG
-    tag.Parent = accessory
-
+    local success, accessory = pcall(function() return game:GetObjects("rbxassetid://" .. tostring(accessoryId))[1] end)
+    if not success or not accessory then return end
+    
+    local tag = Instance.new("BoolValue"); tag.Name = SCRIPT_ACCESSORY_TAG; tag.Parent = accessory
     accessory.Parent = workspace
-
+    
     local handle = accessory:FindFirstChild("Handle")
     if handle then
         local accessoryAttachment = handle:FindFirstChildOfClass("Attachment")
@@ -76,57 +59,39 @@ local function addAccessory(character, accessoryId, parentPart)
             weldParts(parentPart, handle, CFrame.new(), CFrame.new())
         end
     end
-
     accessory.Parent = character
 end
 
 --//-------------------------- CORE EQUIP LOGIC --------------------------\\--
 
--- Applies a set of accessories to the character
 local function applyAccessorySet(character, accessorySet)
     if not character then return end
-    
     wait(EQUIP_DELAY)
-
     if accessorySet.Head and character:FindFirstChild("Head") then
-        for _, accessoryId in ipairs(accessorySet.Head) do
-            addAccessory(character, accessoryId, character.Head)
-        end
+        for _, id in ipairs(accessorySet.Head) do addAccessory(character, id, character.Head) end
     end
-
     local upperTorso = character:FindFirstChild("UpperTorso") or character:FindFirstChild("Torso")
     if accessorySet.Torso and upperTorso then
-        for _, accessoryId in ipairs(accessorySet.Torso) do
-            addAccessory(character, accessoryId, upperTorso)
-        end
+        for _, id in ipairs(accessorySet.Torso) do addAccessory(character, id, upperTorso) end
     end
 end
 
--- Re-applies the last set on respawn
 Player.CharacterAdded:Connect(function(character)
-    -- Wait for character to be ready
     character:WaitForChild("Humanoid")
     if (lastEquippedSet.Head and #lastEquippedSet.Head > 0) or (lastEquippedSet.Torso and #lastEquippedSet.Torso > 0) then
         applyAccessorySet(character, lastEquippedSet)
     end
 end)
 
--- This function is now called by all item buttons
 local function onEquipButtonPressed(accessorySet)
     local character = Player.Character
     if not character then return end
-
-    -- 1. Store the new set for respawns
     lastEquippedSet = accessorySet
-    
-    -- 2. Remove old items from the current character
     clearOldAccessories(character)
-    
-    -- 3. Apply the new items to the current character instantly
     applyAccessorySet(character, accessorySet)
 end
 
---//-------------------------- UI CREATION (No changes below this line) --------------------------\\--
+--//-------------------------- UI CREATION --------------------------\\--
 
 local richSetTab = DrRayLibrary.newTab("Rich set", "")
 richSetTab.newButton("Frozen Horns of the Frigid Planes", "Click to equip", function() onEquipButtonPressed({ Head = {74891470}, Torso = {} }) end)
@@ -158,18 +123,27 @@ usefulTab.newButton("Korblox", "Click to equip", function()
     local char = Player.Character
     if char then
         pcall(function()
-            char.RightLowerLeg.MeshId = "902942093"
-            char.RightLowerLeg.Transparency = 1
-            char.RightUpperLeg.MeshId = "http://www.roblox.com/asset/?id=902942096"
-            char.RightUpperLeg.TextureID = "http://roblox.com/asset/?id=902843398"
-            char.RightFoot.MeshId = "902942089"
-            char.RightFoot.Transparency = 1
+            char.RightLowerLeg.MeshId = "902942093"; char.RightLowerLeg.Transparency = 1
+            char.RightUpperLeg.MeshId = "http://www.roblox.com/asset/?id=902942096"; char.RightUpperLeg.TextureID = "http://roblox.com/asset/?id=902843398"
+            char.RightFoot.MeshId = "902942089"; char.RightFoot.Transparency = 1
         end)
     end
 end)
+
+-- [IMPROVED] RESET BUTTON
 usefulTab.newButton("Reset Character", "Click to reset your avatar", function()
     lastEquippedSet = { Head = {}, Torso = {} }
-    if Player.Character then
+    local character = Player.Character
+    if character then
+        -- Instantly clear accessories and headless
+        clearOldAccessories(character)
+        local head = character:FindFirstChild("Head")
+        if head then
+            head.Transparency = 0
+            for _, v in ipairs(head:GetChildren()) do if v:IsA("Decal") then v.Transparency = 0 end end
+        end
+        
+        -- Attempt a full reload, which is necessary to fix Korblox legs
         Player:LoadCharacter()
     end
 end)
