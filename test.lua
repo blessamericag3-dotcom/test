@@ -1,1164 +1,194 @@
+--[[
+    Script Name: Larps ┃ Paradise (Custom Edition)
+    Description: A powerful, client-sided script for accessories, outfits, and utilities.
+]]
+
+--================================================================================--
+--//                                 SETUP & LIBRARY                              //--
+--================================================================================--
 local DrRayLibrary = loadstring(game:HttpGet("https://raw.githubusercontent.com/AZYsGithub/DrRay-UI-Library/main/DrRay.lua"))()
-local window = DrRayLibrary:Load("Larps ┃ Paradise", "Default")
-
-local tab = DrRayLibrary.newTab("Rich set", "")
-tab.newButton("Frozen Horns of the Frigid Planes", "Click to equip", function()
- getgenv().Time = 1 -- Adjust the time waited before adding the items
-
-getgenv().Head = {
-    74891470,
-    0000000000
-    -- Add more head accessory IDs
-}
-
-getgenv().Torso = {
-    0000000000
-    -- Add more torso accessory IDs
-}
-
---//------------------------------------------------------------------------------------------\\--
-
-local function weldParts(part0, part1, c0, c1)
-    local weld = Instance.new("Weld")
-    weld.Part0 = part0
-    weld.Part1 = part1
-    weld.C0 = c0
-    weld.C1 = c1
-    weld.Parent = part0
-    return weld
+if not DrRayLibrary then
+    warn("DrRay Library failed to load. The script will not run.")
+    return
 end
 
-local function findAttachment(rootPart, name)
-    for _, descendant in pairs(rootPart:GetDescendants()) do
-        if descendant:IsA("Attachment") and descendant.Name == name then
-            return descendant
-        end
+local Players = game:GetService("Players")
+local LocalPlayer = Players.LocalPlayer
+
+-- متغيرات لتتبع الحالة
+local wornItems = {}
+local lastEquippedSet = {}
+
+--================================================================================--
+--//                                CORE FUNCTIONS                                //--
+--================================================================================--
+
+-- دالة لإزالة الإكسسوارات
+local function clearAllWornItems()
+    for _, item in ipairs(wornItems) do
+        if item and item.Parent then item:Destroy() end
     end
+    wornItems = {}
+    print("All script-added accessories have been removed.")
 end
 
-local function addAccessoryToCharacter(accessoryId, parentPart)
-    local accessory = game:GetObjects("rbxassetid://" .. tostring(accessoryId))[1]
-    local character = game.Players.LocalPlayer.Character
-
-    accessory.Parent = game.Workspace
-
-    local handle = accessory:FindFirstChild("Handle")
-    if handle then
-        local attachment = handle:FindFirstChildOfClass("Attachment")
-        if attachment then
-            local parentAttachment = findAttachment(parentPart, attachment.Name)
-            if parentAttachment then
-                weldParts(parentPart, handle, parentAttachment.CFrame, attachment.CFrame)
-            end
-        else
-            local parent = character:FindFirstChild(parentPart.Name)
-            if parent then
-                local attachmentPoint = accessory.AttachmentPoint
-                weldParts(parent, handle, CFrame.new(0, 0.5, 0), attachmentPoint.CFrame)
-            end
-        end
-    end
-
-    accessory.Parent = game.Players.LocalPlayer.Character
-end
-
-local function onCharacterAdded(character)
-    wait(getgenv().Time) -- Wait for the character to fully load
-
-    for _, accessoryId in ipairs(getgenv().Head) do
-        addAccessoryToCharacter(accessoryId, character.Head)
-    end
-
-    for _, accessoryId in ipairs(getgenv().Torso) do
-        addAccessoryToCharacter(accessoryId, character:FindFirstChild("UpperTorso") or character:FindFirstChild("Torso"))
-    end
-end
-
-game.Players.LocalPlayer.CharacterAdded:Connect(onCharacterAdded)
-
-if game.Players.LocalPlayer.Character then
-    onCharacterAdded(game.Players.LocalPlayer.Character)
-end
-end)
-
-tab.newButton("Dominus Praefectus", "Click to equip", function()
+-- دالة لإضافة إكسسوار واحد
+local function addAccessory(accessoryId, parentPart)
+    if not accessoryId or accessoryId == 0 or not parentPart then return nil end
     
-getgenv().Time = 1 -- Adjust the time waited before adding the items
+    local success, accessory = pcall(function()
+        return game:GetObjects("rbxassetid://" .. tostring(accessoryId))[1]
+    end)
 
-getgenv().Head = {
-    527365852,
-    0000000000
-    -- Add more head accessory IDs
-}
-
-getgenv().Torso = {
-    0000000000
-    -- Add more torso accessory IDs
-}
-
---//------------------------------------------------------------------------------------------\\--
-
-local function weldParts(part0, part1, c0, c1)
-    local weld = Instance.new("Weld")
-    weld.Part0 = part0
-    weld.Part1 = part1
-    weld.C0 = c0
-    weld.C1 = c1
-    weld.Parent = part0
-    return weld
-end
-
-local function findAttachment(rootPart, name)
-    for _, descendant in pairs(rootPart:GetDescendants()) do
-        if descendant:IsA("Attachment") and descendant.Name == name then
-            return descendant
-        end
+    if not success or not accessory then
+        warn("Failed to load accessory with ID:", accessoryId)
+        return nil
     end
-end
 
-local function addAccessoryToCharacter(accessoryId, parentPart)
-    local accessory = game:GetObjects("rbxassetid://" .. tostring(accessoryId))[1]
-    local character = game.Players.LocalPlayer.Character
-
-    accessory.Parent = game.Workspace
-
+    accessory.Parent = parentPart
     local handle = accessory:FindFirstChild("Handle")
-    if handle then
-        local attachment = handle:FindFirstChildOfClass("Attachment")
-        if attachment then
-            local parentAttachment = findAttachment(parentPart, attachment.Name)
-            if parentAttachment then
-                weldParts(parentPart, handle, parentAttachment.CFrame, attachment.CFrame)
-            end
-        else
-            local parent = character:FindFirstChild(parentPart.Name)
-            if parent then
-                local attachmentPoint = accessory.AttachmentPoint
-                weldParts(parent, handle, CFrame.new(0, 0.5, 0), attachmentPoint.CFrame)
-            end
-        end
+    if not handle then
+        accessory:Destroy()
+        return nil
     end
 
-    accessory.Parent = game.Players.LocalPlayer.Character
-end
-
-local function onCharacterAdded(character)
-    wait(getgenv().Time) -- Wait for the character to fully load
-
-    for _, accessoryId in ipairs(getgenv().Head) do
-        addAccessoryToCharacter(accessoryId, character.Head)
-    end
-
-    for _, accessoryId in ipairs(getgenv().Torso) do
-        addAccessoryToCharacter(accessoryId, character:FindFirstChild("UpperTorso") or character:FindFirstChild("Torso"))
-    end
-end
-
-game.Players.LocalPlayer.CharacterAdded:Connect(onCharacterAdded)
-
-if game.Players.LocalPlayer.Character then
-    onCharacterAdded(game.Players.LocalPlayer.Character)
-end
-end)
-
-tab.newButton("Fiery Horns of the Netherworld", "Clcick to equip", function()
+    local weld = Instance.new("Weld")
+    weld.Part0 = parentPart
+    weld.Part1 = handle
     
-getgenv().Time = 1 -- Adjust the time waited before adding the items
-
-getgenv().Head = {
-    215718515,
-    0000000000
-    -- Add more head accessory IDs
-}
-
-getgenv().Torso = {
-    0000000000
-    -- Add more torso accessory IDs
-}
-
---//------------------------------------------------------------------------------------------\\--
-
-local function weldParts(part0, part1, c0, c1)
-    local weld = Instance.new("Weld")
-    weld.Part0 = part0
-    weld.Part1 = part1
-    weld.C0 = c0
-    weld.C1 = c1
-    weld.Parent = part0
-    return weld
-end
-
-local function findAttachment(rootPart, name)
-    for _, descendant in pairs(rootPart:GetDescendants()) do
-        if descendant:IsA("Attachment") and descendant.Name == name then
-            return descendant
+    local attachment = handle:FindFirstChildOfClass("Attachment")
+    if attachment then
+        local targetAttachment = parentPart:FindFirstChild(attachment.Name, true)
+        if targetAttachment then
+            weld.C0 = targetAttachment.CFrame
+            weld.C1 = attachment.CFrame
         end
     end
-end
-
-local function addAccessoryToCharacter(accessoryId, parentPart)
-    local accessory = game:GetObjects("rbxassetid://" .. tostring(accessoryId))[1]
-    local character = game.Players.LocalPlayer.Character
-
-    accessory.Parent = game.Workspace
-
-    local handle = accessory:FindFirstChild("Handle")
-    if handle then
-        local attachment = handle:FindFirstChildOfClass("Attachment")
-        if attachment then
-            local parentAttachment = findAttachment(parentPart, attachment.Name)
-            if parentAttachment then
-                weldParts(parentPart, handle, parentAttachment.CFrame, attachment.CFrame)
-            end
-        else
-            local parent = character:FindFirstChild(parentPart.Name)
-            if parent then
-                local attachmentPoint = accessory.AttachmentPoint
-                weldParts(parent, handle, CFrame.new(0, 0.5, 0), attachmentPoint.CFrame)
-            end
-        end
-    end
-
-    accessory.Parent = game.Players.LocalPlayer.Character
-end
-
-local function onCharacterAdded(character)
-    wait(getgenv().Time) -- Wait for the character to fully load
-
-    for _, accessoryId in ipairs(getgenv().Head) do
-        addAccessoryToCharacter(accessoryId, character.Head)
-    end
-
-    for _, accessoryId in ipairs(getgenv().Torso) do
-        addAccessoryToCharacter(accessoryId, character:FindFirstChild("UpperTorso") or character:FindFirstChild("Torso"))
-    end
-end
-
-game.Players.LocalPlayer.CharacterAdded:Connect(onCharacterAdded)
-
-if game.Players.LocalPlayer.Character then
-    onCharacterAdded(game.Players.LocalPlayer.Character)
-end
-end)
-
-tab.newButton("Silver King of the Night", "Click to equip", function()
     
-getgenv().Time = 1 -- Adjust the time waited before adding the items
-
-getgenv().Head = {
-    439945661,
-    0000000000
-    -- Add more head accessory IDs
-}
-
-getgenv().Torso = {
-    0000000000
-    -- Add more torso accessory IDs
-}
-
---//------------------------------------------------------------------------------------------\\--
-
-local function weldParts(part0, part1, c0, c1)
-    local weld = Instance.new("Weld")
-    weld.Part0 = part0
-    weld.Part1 = part1
-    weld.C0 = c0
-    weld.C1 = c1
-    weld.Parent = part0
-    return weld
+    weld.Parent = handle
+    table.insert(wornItems, accessory)
+    return accessory
 end
 
-local function findAttachment(rootPart, name)
-    for _, descendant in pairs(rootPart:GetDescendants()) do
-        if descendant:IsA("Attachment") and descendant.Name == name then
-            return descendant
-        end
-    end
-end
+-- دالة لتجهيز مجموعة كاملة
+local function equipSet(items)
+    clearAllWornItems()
+    lastEquippedSet = items
+    task.wait(0.1)
 
-local function addAccessoryToCharacter(accessoryId, parentPart)
-    local accessory = game:GetObjects("rbxassetid://" .. tostring(accessoryId))[1]
-    local character = game.Players.LocalPlayer.Character
-
-    accessory.Parent = game.Workspace
-
-    local handle = accessory:FindFirstChild("Handle")
-    if handle then
-        local attachment = handle:FindFirstChildOfClass("Attachment")
-        if attachment then
-            local parentAttachment = findAttachment(parentPart, attachment.Name)
-            if parentAttachment then
-                weldParts(parentPart, handle, parentAttachment.CFrame, attachment.CFrame)
-            end
-        else
-            local parent = character:FindFirstChild(parentPart.Name)
-            if parent then
-                local attachmentPoint = accessory.AttachmentPoint
-                weldParts(parent, handle, CFrame.new(0, 0.5, 0), attachmentPoint.CFrame)
-            end
-        end
-    end
-
-    accessory.Parent = game.Players.LocalPlayer.Character
-end
-
-local function onCharacterAdded(character)
-    wait(getgenv().Time) -- Wait for the character to fully load
-
-    for _, accessoryId in ipairs(getgenv().Head) do
-        addAccessoryToCharacter(accessoryId, character.Head)
-    end
-
-    for _, accessoryId in ipairs(getgenv().Torso) do
-        addAccessoryToCharacter(accessoryId, character:FindFirstChild("UpperTorso") or character:FindFirstChild("Torso"))
-    end
-end
-
-game.Players.LocalPlayer.CharacterAdded:Connect(onCharacterAdded)
-
-if game.Players.LocalPlayer.Character then
-    onCharacterAdded(game.Players.LocalPlayer.Character)
-end
-end)
-
-tab.newButton("Poisoned Horns of the Toxic Wasteland", "Click to equip", function()
+    local character = LocalPlayer.Character
+    if not character then return end
     
-getgenv().Time = 1 -- Adjust the time waited before adding the items
+    local head = character:FindFirstChild("Head")
+    local torso = character:FindFirstChild("UpperTorso") or character:FindFirstChild("Torso")
 
-getgenv().Head = {
-    1744060292,
-    0000000000
-    -- Add more head accessory IDs
-}
-
-getgenv().Torso = {
-    0000000000
-    -- Add more torso accessory IDs
-}
-
---//------------------------------------------------------------------------------------------\\--
-
-local function weldParts(part0, part1, c0, c1)
-    local weld = Instance.new("Weld")
-    weld.Part0 = part0
-    weld.Part1 = part1
-    weld.C0 = c0
-    weld.C1 = c1
-    weld.Parent = part0
-    return weld
-end
-
-local function findAttachment(rootPart, name)
-    for _, descendant in pairs(rootPart:GetDescendants()) do
-        if descendant:IsA("Attachment") and descendant.Name == name then
-            return descendant
-        end
+    if items.Head and head then
+        for _, id in ipairs(items.Head) do addAccessory(id, head) end
     end
-end
-
-local function addAccessoryToCharacter(accessoryId, parentPart)
-    local accessory = game:GetObjects("rbxassetid://" .. tostring(accessoryId))[1]
-    local character = game.Players.LocalPlayer.Character
-
-    accessory.Parent = game.Workspace
-
-    local handle = accessory:FindFirstChild("Handle")
-    if handle then
-        local attachment = handle:FindFirstChildOfClass("Attachment")
-        if attachment then
-            local parentAttachment = findAttachment(parentPart, attachment.Name)
-            if parentAttachment then
-                weldParts(parentPart, handle, parentAttachment.CFrame, attachment.CFrame)
-            end
-        else
-            local parent = character:FindFirstChild(parentPart.Name)
-            if parent then
-                local attachmentPoint = accessory.AttachmentPoint
-                weldParts(parent, handle, CFrame.new(0, 0.5, 0), attachmentPoint.CFrame)
-            end
-        end
+    if items.Torso and torso then
+        for _, id in ipairs(items.Torso) do addAccessory(id, torso) end
     end
-
-    accessory.Parent = game.Players.LocalPlayer.Character
+    print("Equipped new set.")
 end
 
-local function onCharacterAdded(character)
-    wait(getgenv().Time) -- Wait for the character to fully load
-
-    for _, accessoryId in ipairs(getgenv().Head) do
-        addAccessoryToCharacter(accessoryId, character.Head)
+-- دالة لإعادة التجهيز عند الموت
+LocalPlayer.CharacterAdded:Connect(function(character)
+    character:WaitForChild("Humanoid")
+    character:WaitForChild("Head")
+    task.wait(1)
+    if next(lastEquippedSet) then
+        equipSet(lastEquippedSet)
     end
-
-    for _, accessoryId in ipairs(getgenv().Torso) do
-        addAccessoryToCharacter(accessoryId, character:FindFirstChild("UpperTorso") or character:FindFirstChild("Torso"))
-    end
-end
-
-game.Players.LocalPlayer.CharacterAdded:Connect(onCharacterAdded)
-
-if game.Players.LocalPlayer.Character then
-    onCharacterAdded(game.Players.LocalPlayer.Character)
-end
 end)
 
-tab.newButton("Valkyrie Helm", "Click to equip", function()
-    
-getgenv().Time = 1 -- Adjust the time waited before adding the items
-
-getgenv().Head = {
-    1365767,
-    0000000000
-    -- Add more head accessory IDs
+--================================================================================--
+--//                              DATA CONFIGURATION                              //--
+--================================================================================--
+local Data = {
+    Outfits = {
+        {
+            Name = "Valkyrie Warrior",
+            Items = {
+                Head = {451220311}, -- Federation Valk
+                Torso = {4898729547} -- Sparkle Time Wings
+            }
+        },
+        {
+            Name = "Korblox General",
+            Items = {
+                Head = {134335559, 134335528}, -- Korblox Helmet & Vision
+                Torso = {134335619, 134335601} -- Korblox Pauldrons
+            }
+        }
+    }
 }
 
-getgenv().Torso = {
-    0000000000
-    -- Add more torso accessory IDs
-}
+--================================================================================--
+--//                                 GUI CREATION                                 //--
+--================================================================================--
 
---//------------------------------------------------------------------------------------------\\--
+local window = DrRayLibrary:Load("Larps ┃ Paradise ┃ Custom", "Default")
 
-local function weldParts(part0, part1, c0, c1)
-    local weld = Instance.new("Weld")
-    weld.Part0 = part0
-    weld.Part1 = part1
-    weld.C0 = c0
-    weld.C1 = c1
-    weld.Parent = part0
-    return weld
+-- تبويب الأطقم "Outfits"
+local outfitsTab = window:newTab("Outfits", "rbxassetid://6034356588") -- أيقونة ملابس
+for _, outfitData in ipairs(Data.Outfits) do
+    outfitsTab:newButton(outfitData.Name, "Click to equip this outfit", function()
+        equipSet(outfitData.Items)
+    end)
 end
 
-local function findAttachment(rootPart, name)
-    for _, descendant in pairs(rootPart:GetDescendants()) do
-        if descendant:IsA("Attachment") and descendant.Name == name then
-            return descendant
-        end
+-- تبويب العناصر المخصصة "Custom Items"
+local customTab = window:newTab("Custom Items", "rbxassetid://6034354215") -- أيقونة +
+customTab:newLabel("Add any item using its Asset ID")
+local headInput = customTab:newInput("Head Accessory ID", "Enter ID here...")
+customTab:newButton("Equip to Head", "Adds the item to your head", function()
+    local id = tonumber(headInput:Get())
+    if id and LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Head") then
+        addAccessory(id, LocalPlayer.Character.Head)
     end
-end
-
-local function addAccessoryToCharacter(accessoryId, parentPart)
-    local accessory = game:GetObjects("rbxassetid://" .. tostring(accessoryId))[1]
-    local character = game.Players.LocalPlayer.Character
-
-    accessory.Parent = game.Workspace
-
-    local handle = accessory:FindFirstChild("Handle")
-    if handle then
-        local attachment = handle:FindFirstChildOfClass("Attachment")
-        if attachment then
-            local parentAttachment = findAttachment(parentPart, attachment.Name)
-            if parentAttachment then
-                weldParts(parentPart, handle, parentAttachment.CFrame, attachment.CFrame)
-            end
-        else
-            local parent = character:FindFirstChild(parentPart.Name)
-            if parent then
-                local attachmentPoint = accessory.AttachmentPoint
-                weldParts(parent, handle, CFrame.new(0, 0.5, 0), attachmentPoint.CFrame)
-            end
-        end
-    end
-
-    accessory.Parent = game.Players.LocalPlayer.Character
-end
-
-local function onCharacterAdded(character)
-    wait(getgenv().Time) -- Wait for the character to fully load
-
-    for _, accessoryId in ipairs(getgenv().Head) do
-        addAccessoryToCharacter(accessoryId, character.Head)
-    end
-
-    for _, accessoryId in ipairs(getgenv().Torso) do
-        addAccessoryToCharacter(accessoryId, character:FindFirstChild("UpperTorso") or character:FindFirstChild("Torso"))
-    end
-end
-
-game.Players.LocalPlayer.CharacterAdded:Connect(onCharacterAdded)
-
-if game.Players.LocalPlayer.Character then
-    onCharacterAdded(game.Players.LocalPlayer.Character)
-end
 end)
 
-tab.newButton("Blackvalk", "Click to equip", function()
-    
-getgenv().Time = 1 -- Adjust the time waited before adding the items
-
-getgenv().Head = {
-    124730194,
-    0000000000
-    -- Add more head accessory IDs
-}
-
-getgenv().Torso = {
-    0000000000
-    -- Add more torso accessory IDs
-}
-
---//------------------------------------------------------------------------------------------\\--
-
-local function weldParts(part0, part1, c0, c1)
-    local weld = Instance.new("Weld")
-    weld.Part0 = part0
-    weld.Part1 = part1
-    weld.C0 = c0
-    weld.C1 = c1
-    weld.Parent = part0
-    return weld
-end
-
-local function findAttachment(rootPart, name)
-    for _, descendant in pairs(rootPart:GetDescendants()) do
-        if descendant:IsA("Attachment") and descendant.Name == name then
-            return descendant
-        end
+local torsoInput = customTab:newInput("Torso Accessory ID", "Enter ID here...")
+customTab:newButton("Equip to Torso", "Adds the item to your torso", function()
+    local id = tonumber(torsoInput:Get())
+    if id and LocalPlayer.Character then
+        local torso = LocalPlayer.Character:FindFirstChild("UpperTorso") or LocalPlayer.Character:FindFirstChild("Torso")
+        if torso then addAccessory(id, torso) end
     end
-end
-
-local function addAccessoryToCharacter(accessoryId, parentPart)
-    local accessory = game:GetObjects("rbxassetid://" .. tostring(accessoryId))[1]
-    local character = game.Players.LocalPlayer.Character
-
-    accessory.Parent = game.Workspace
-
-    local handle = accessory:FindFirstChild("Handle")
-    if handle then
-        local attachment = handle:FindFirstChildOfClass("Attachment")
-        if attachment then
-            local parentAttachment = findAttachment(parentPart, attachment.Name)
-            if parentAttachment then
-                weldParts(parentPart, handle, parentAttachment.CFrame, attachment.CFrame)
-            end
-        else
-            local parent = character:FindFirstChild(parentPart.Name)
-            if parent then
-                local attachmentPoint = accessory.AttachmentPoint
-                weldParts(parent, handle, CFrame.new(0, 0.5, 0), attachmentPoint.CFrame)
-            end
-        end
-    end
-
-    accessory.Parent = game.Players.LocalPlayer.Character
-end
-
-local function onCharacterAdded(character)
-    wait(getgenv().Time) -- Wait for the character to fully load
-
-    for _, accessoryId in ipairs(getgenv().Head) do
-        addAccessoryToCharacter(accessoryId, character.Head)
-    end
-
-    for _, accessoryId in ipairs(getgenv().Torso) do
-        addAccessoryToCharacter(accessoryId, character:FindFirstChild("UpperTorso") or character:FindFirstChild("Torso"))
-    end
-end
-
-game.Players.LocalPlayer.CharacterAdded:Connect(onCharacterAdded)
-
-if game.Players.LocalPlayer.Character then
-    onCharacterAdded(game.Players.LocalPlayer.Character)
-end
 end)
 
 
-local tab = DrRayLibrary.newTab("Hats", "ImageIdHere")
-tab.newButton("Pink Sparkle Time Fedora", "Click to equip", function()
-    
-getgenv().Time = 1 -- Adjust the time waited before adding the items
-
-getgenv().Head = {
-    334663683,
-    0000000000
-    -- Add more head accessory IDs
-}
-
-getgenv().Torso = {
-    0000000000
-    -- Add more torso accessory IDs
-}
-
---//------------------------------------------------------------------------------------------\\--
-
-local function weldParts(part0, part1, c0, c1)
-    local weld = Instance.new("Weld")
-    weld.Part0 = part0
-    weld.Part1 = part1
-    weld.C0 = c0
-    weld.C1 = c1
-    weld.Parent = part0
-    return weld
-end
-
-local function findAttachment(rootPart, name)
-    for _, descendant in pairs(rootPart:GetDescendants()) do
-        if descendant:IsA("Attachment") and descendant.Name == name then
-            return descendant
-        end
-    end
-end
-
-local function addAccessoryToCharacter(accessoryId, parentPart)
-    local accessory = game:GetObjects("rbxassetid://" .. tostring(accessoryId))[1]
-    local character = game.Players.LocalPlayer.Character
-
-    accessory.Parent = game.Workspace
-
-    local handle = accessory:FindFirstChild("Handle")
-    if handle then
-        local attachment = handle:FindFirstChildOfClass("Attachment")
-        if attachment then
-            local parentAttachment = findAttachment(parentPart, attachment.Name)
-            if parentAttachment then
-                weldParts(parentPart, handle, parentAttachment.CFrame, attachment.CFrame)
-            end
-        else
-            local parent = character:FindFirstChild(parentPart.Name)
-            if parent then
-                local attachmentPoint = accessory.AttachmentPoint
-                weldParts(parent, handle, CFrame.new(0, 0.5, 0), attachmentPoint.CFrame)
-            end
-        end
-    end
-
-    accessory.Parent = game.Players.LocalPlayer.Character
-end
-
-local function onCharacterAdded(character)
-    wait(getgenv().Time) -- Wait for the character to fully load
-
-    for _, accessoryId in ipairs(getgenv().Head) do
-        addAccessoryToCharacter(accessoryId, character.Head)
-    end
-
-    for _, accessoryId in ipairs(getgenv().Torso) do
-        addAccessoryToCharacter(accessoryId, character:FindFirstChild("UpperTorso") or character:FindFirstChild("Torso"))
-    end
-end
-
-game.Players.LocalPlayer.CharacterAdded:Connect(onCharacterAdded)
-
-if game.Players.LocalPlayer.Character then
-    onCharacterAdded(game.Players.LocalPlayer.Character)
-end
+-- تبويب الأدوات "Utilities"
+local utilTab = window:newTab("Utilities", "rbxassetid://6034352233") -- أيقونة ترس
+utilTab:newButton("Clear All Items", "Removes all script accessories", function()
+    clearAllWornItems()
+    lastEquippedSet = {}
 end)
-
-tab.newButton("Midnight Blue Sparkle Time Fedora", "Click to equip", function()
-    
-getgenv().Time = 1 -- Adjust the time waited before adding the items
-
-getgenv().Head = {
-    119916949,
-    0000000000
-    -- Add more head accessory IDs
-}
-
-getgenv().Torso = {
-    0000000000
-    -- Add more torso accessory IDs
-}
-
---//------------------------------------------------------------------------------------------\\--
-
-local function weldParts(part0, part1, c0, c1)
-    local weld = Instance.new("Weld")
-    weld.Part0 = part0
-    weld.Part1 = part1
-    weld.C0 = c0
-    weld.C1 = c1
-    weld.Parent = part0
-    return weld
-end
-
-local function findAttachment(rootPart, name)
-    for _, descendant in pairs(rootPart:GetDescendants()) do
-        if descendant:IsA("Attachment") and descendant.Name == name then
-            return descendant
+utilTab:newButton("Headless", "Makes your head invisible", function()
+    if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Head") then
+        LocalPlayer.Character.Head.Transparency = 1
+        for _, v in pairs(LocalPlayer.Character.Head:GetChildren()) do
+            if v:IsA("Decal") then v.Transparency = 1 end
         end
     end
-end
-
-local function addAccessoryToCharacter(accessoryId, parentPart)
-    local accessory = game:GetObjects("rbxassetid://" .. tostring(accessoryId))[1]
-    local character = game.Players.LocalPlayer.Character
-
-    accessory.Parent = game.Workspace
-
-    local handle = accessory:FindFirstChild("Handle")
-    if handle then
-        local attachment = handle:FindFirstChildOfClass("Attachment")
-        if attachment then
-            local parentAttachment = findAttachment(parentPart, attachment.Name)
-            if parentAttachment then
-                weldParts(parentPart, handle, parentAttachment.CFrame, attachment.CFrame)
-            end
-        else
-            local parent = character:FindFirstChild(parentPart.Name)
-            if parent then
-                local attachmentPoint = accessory.AttachmentPoint
-                weldParts(parent, handle, CFrame.new(0, 0.5, 0), attachmentPoint.CFrame)
-            end
+end)
+utilTab:newButton("Restore Head", "Makes your head visible again", function()
+    if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Head") then
+        LocalPlayer.Character.Head.Transparency = 0
+        for _, v in pairs(LocalPlayer.Character.Head:GetChildren()) do
+            if v:IsA("Decal") then v.Transparency = 0 end
         end
     end
-
-    accessory.Parent = game.Players.LocalPlayer.Character
-end
-
-local function onCharacterAdded(character)
-    wait(getgenv().Time) -- Wait for the character to fully load
-
-    for _, accessoryId in ipairs(getgenv().Head) do
-        addAccessoryToCharacter(accessoryId, character.Head)
-    end
-
-    for _, accessoryId in ipairs(getgenv().Torso) do
-        addAccessoryToCharacter(accessoryId, character:FindFirstChild("UpperTorso") or character:FindFirstChild("Torso"))
-    end
-end
-
-game.Players.LocalPlayer.CharacterAdded:Connect(onCharacterAdded)
-
-if game.Players.LocalPlayer.Character then
-    onCharacterAdded(game.Players.LocalPlayer.Character)
-end
+end)
+utilTab:newButton("Korblox Leg", "Applies Korblox leg effect", function()
+    local char = LocalPlayer.Character
+    if not char then return end
+    pcall(function()
+        for _, partName in ipairs({"RightLowerLeg", "RightUpperLeg", "RightFoot"}) do
+             if char[partName] then char[partName].Transparency = 1 end
+        end
+    end)
 end)
 
 
-tab.newButton("Green Sparkle Time Fedora", "Click to equip", function()
-    
-getgenv().Time = 1 -- Adjust the time waited before adding the items
-
-getgenv().Head = {
-    100929604,
-    0000000000
-    -- Add more head accessory IDs
-}
-
-getgenv().Torso = {
-    0000000000
-    -- Add more torso accessory IDs
-}
-
---//------------------------------------------------------------------------------------------\\--
-
-local function weldParts(part0, part1, c0, c1)
-    local weld = Instance.new("Weld")
-    weld.Part0 = part0
-    weld.Part1 = part1
-    weld.C0 = c0
-    weld.C1 = c1
-    weld.Parent = part0
-    return weld
-end
-
-local function findAttachment(rootPart, name)
-    for _, descendant in pairs(rootPart:GetDescendants()) do
-        if descendant:IsA("Attachment") and descendant.Name == name then
-            return descendant
-        end
-    end
-end
-
-local function addAccessoryToCharacter(accessoryId, parentPart)
-    local accessory = game:GetObjects("rbxassetid://" .. tostring(accessoryId))[1]
-    local character = game.Players.LocalPlayer.Character
-
-    accessory.Parent = game.Workspace
-
-    local handle = accessory:FindFirstChild("Handle")
-    if handle then
-        local attachment = handle:FindFirstChildOfClass("Attachment")
-        if attachment then
-            local parentAttachment = findAttachment(parentPart, attachment.Name)
-            if parentAttachment then
-                weldParts(parentPart, handle, parentAttachment.CFrame, attachment.CFrame)
-            end
-        else
-            local parent = character:FindFirstChild(parentPart.Name)
-            if parent then
-                local attachmentPoint = accessory.AttachmentPoint
-                weldParts(parent, handle, CFrame.new(0, 0.5, 0), attachmentPoint.CFrame)
-            end
-        end
-    end
-
-    accessory.Parent = game.Players.LocalPlayer.Character
-end
-
-local function onCharacterAdded(character)
-    wait(getgenv().Time) -- Wait for the character to fully load
-
-    for _, accessoryId in ipairs(getgenv().Head) do
-        addAccessoryToCharacter(accessoryId, character.Head)
-    end
-
-    for _, accessoryId in ipairs(getgenv().Torso) do
-        addAccessoryToCharacter(accessoryId, character:FindFirstChild("UpperTorso") or character:FindFirstChild("Torso"))
-    end
-end
-
-game.Players.LocalPlayer.CharacterAdded:Connect(onCharacterAdded)
-
-if game.Players.LocalPlayer.Character then
-    onCharacterAdded(game.Players.LocalPlayer.Character)
-end
-end)
-
-
-tab.newButton("Black Sparkle Time Fedora", "Click to equip", function()
-    
-getgenv().Time = 1 -- Adjust the time waited before adding the items
-
-getgenv().Head = {
-    74891470,
-    0000000000
-    -- Add more head accessory IDs
-}
-
-getgenv().Torso = {
-    0000000000
-    -- Add more torso accessory IDs
-}
-
---//------------------------------------------------------------------------------------------\\--
-
-local function weldParts(part0, part1, c0, c1)
-    local weld = Instance.new("Weld")
-    weld.Part0 = part0
-    weld.Part1 = part1
-    weld.C0 = c0
-    weld.C1 = c1
-    weld.Parent = part0
-    return weld
-end
-
-local function findAttachment(rootPart, name)
-    for _, descendant in pairs(rootPart:GetDescendants()) do
-        if descendant:IsA("Attachment") and descendant.Name == name then
-            return descendant
-        end
-    end
-end
-
-local function addAccessoryToCharacter(accessoryId, parentPart)
-    local accessory = game:GetObjects("rbxassetid://" .. tostring(accessoryId))[1]
-    local character = game.Players.LocalPlayer.Character
-
-    accessory.Parent = game.Workspace
-
-    local handle = accessory:FindFirstChild("Handle")
-    if handle then
-        local attachment = handle:FindFirstChildOfClass("Attachment")
-        if attachment then
-            local parentAttachment = findAttachment(parentPart, attachment.Name)
-            if parentAttachment then
-                weldParts(parentPart, handle, parentAttachment.CFrame, attachment.CFrame)
-            end
-        else
-            local parent = character:FindFirstChild(parentPart.Name)
-            if parent then
-                local attachmentPoint = accessory.AttachmentPoint
-                weldParts(parent, handle, CFrame.new(0, 0.5, 0), attachmentPoint.CFrame)
-            end
-        end
-    end
-
-    accessory.Parent = game.Players.LocalPlayer.Character
-end
-
-local function onCharacterAdded(character)
-    wait(getgenv().Time) -- Wait for the character to fully load
-
-    for _, accessoryId in ipairs(getgenv().Head) do
-        addAccessoryToCharacter(accessoryId, character.Head)
-    end
-
-    for _, accessoryId in ipairs(getgenv().Torso) do
-        addAccessoryToCharacter(accessoryId, character:FindFirstChild("UpperTorso") or character:FindFirstChild("Torso"))
-    end
-end
-
-game.Players.LocalPlayer.CharacterAdded:Connect(onCharacterAdded)
-
-if game.Players.LocalPlayer.Character then
-    onCharacterAdded(game.Players.LocalPlayer.Character)
-end
-end)
-
-
-
-tab.newButton("White Sparkle Time Fedora", "Click to equip", function()
-    
-getgenv().Time = 1 -- Adjust the time waited before adding the items
-
-getgenv().Head = {
-    74891470,
-    0000000000
-    -- Add more head accessory IDs
-}
-
-getgenv().Torso = {
-    0000000000
-    -- Add more torso accessory IDs
-}
-
---//------------------------------------------------------------------------------------------\\--
-
-local function weldParts(part0, part1, c0, c1)
-    local weld = Instance.new("Weld")
-    weld.Part0 = part0
-    weld.Part1 = part1
-    weld.C0 = c0
-    weld.C1 = c1
-    weld.Parent = part0
-    return weld
-end
-
-local function findAttachment(rootPart, name)
-    for _, descendant in pairs(rootPart:GetDescendants()) do
-        if descendant:IsA("Attachment") and descendant.Name == name then
-            return descendant
-        end
-    end
-end
-
-local function addAccessoryToCharacter(accessoryId, parentPart)
-    local accessory = game:GetObjects("rbxassetid://" .. tostring(accessoryId))[1]
-    local character = game.Players.LocalPlayer.Character
-
-    accessory.Parent = game.Workspace
-
-    local handle = accessory:FindFirstChild("Handle")
-    if handle then
-        local attachment = handle:FindFirstChildOfClass("Attachment")
-        if attachment then
-            local parentAttachment = findAttachment(parentPart, attachment.Name)
-            if parentAttachment then
-                weldParts(parentPart, handle, parentAttachment.CFrame, attachment.CFrame)
-            end
-        else
-            local parent = character:FindFirstChild(parentPart.Name)
-            if parent then
-                local attachmentPoint = accessory.AttachmentPoint
-                weldParts(parent, handle, CFrame.new(0, 0.5, 0), attachmentPoint.CFrame)
-            end
-        end
-    end
-
-    accessory.Parent = game.Players.LocalPlayer.Character
-end
-
-local function onCharacterAdded(character)
-    wait(getgenv().Time) -- Wait for the character to fully load
-
-    for _, accessoryId in ipairs(getgenv().Head) do
-        addAccessoryToCharacter(accessoryId, character.Head)
-    end
-
-    for _, accessoryId in ipairs(getgenv().Torso) do
-        addAccessoryToCharacter(accessoryId, character:FindFirstChild("UpperTorso") or character:FindFirstChild("Torso"))
-    end
-end
-
-game.Players.LocalPlayer.CharacterAdded:Connect(onCharacterAdded)
-
-if game.Players.LocalPlayer.Character then
-    onCharacterAdded(game.Players.LocalPlayer.Character)
-end
-end)
-
-tab.newButton("Red Sparkle Time Fedora", "Click to equip", function()
-    
-getgenv().Time = 1 -- Adjust the time waited before adding the items
-
-getgenv().Head = {
-    72082328,
-    0000000000
-    -- Add more head accessory IDs
-}
-
-getgenv().Torso = {
-    0000000000
-    -- Add more torso accessory IDs
-}
-
---//------------------------------------------------------------------------------------------\\--
-
-local function weldParts(part0, part1, c0, c1)
-    local weld = Instance.new("Weld")
-    weld.Part0 = part0
-    weld.Part1 = part1
-    weld.C0 = c0
-    weld.C1 = c1
-    weld.Parent = part0
-    return weld
-end
-
-local function findAttachment(rootPart, name)
-    for _, descendant in pairs(rootPart:GetDescendants()) do
-        if descendant:IsA("Attachment") and descendant.Name == name then
-            return descendant
-        end
-    end
-end
-
-local function addAccessoryToCharacter(accessoryId, parentPart)
-    local accessory = game:GetObjects("rbxassetid://" .. tostring(accessoryId))[1]
-    local character = game.Players.LocalPlayer.Character
-
-    accessory.Parent = game.Workspace
-
-    local handle = accessory:FindFirstChild("Handle")
-    if handle then
-        local attachment = handle:FindFirstChildOfClass("Attachment")
-        if attachment then
-            local parentAttachment = findAttachment(parentPart, attachment.Name)
-            if parentAttachment then
-                weldParts(parentPart, handle, parentAttachment.CFrame, attachment.CFrame)
-            end
-        else
-            local parent = character:FindFirstChild(parentPart.Name)
-            if parent then
-                local attachmentPoint = accessory.AttachmentPoint
-                weldParts(parent, handle, CFrame.new(0, 0.5, 0), attachmentPoint.CFrame)
-            end
-        end
-    end
-
-    accessory.Parent = game.Players.LocalPlayer.Character
-end
-
-local function onCharacterAdded(character)
-    wait(getgenv().Time) -- Wait for the character to fully load
-
-    for _, accessoryId in ipairs(getgenv().Head) do
-        addAccessoryToCharacter(accessoryId, character.Head)
-    end
-
-    for _, accessoryId in ipairs(getgenv().Torso) do
-        addAccessoryToCharacter(accessoryId, character:FindFirstChild("UpperTorso") or character:FindFirstChild("Torso"))
-    end
-end
-
-game.Players.LocalPlayer.CharacterAdded:Connect(onCharacterAdded)
-
-if game.Players.LocalPlayer.Character then
-    onCharacterAdded(game.Players.LocalPlayer.Character)
-end
-end)
-
-tab.newButton("Purple Sparkle Time Fedora", "Click to equip", function()
-    
-getgenv().Time = 1 -- Adjust the time waited before adding the items
-
-getgenv().Head = {
-    63043890,
-    0000000000
-    -- Add more head accessory IDs
-}
-
-getgenv().Torso = {
-    0000000000
-    -- Add more torso accessory IDs
-}
-
---//------------------------------------------------------------------------------------------\\--
-
-local function weldParts(part0, part1, c0, c1)
-    local weld = Instance.new("Weld")
-    weld.Part0 = part0
-    weld.Part1 = part1
-    weld.C0 = c0
-    weld.C1 = c1
-    weld.Parent = part0
-    return weld
-end
-
-local function findAttachment(rootPart, name)
-    for _, descendant in pairs(rootPart:GetDescendants()) do
-        if descendant:IsA("Attachment") and descendant.Name == name then
-            return descendant
-        end
-    end
-end
-
-local function addAccessoryToCharacter(accessoryId, parentPart)
-    local accessory = game:GetObjects("rbxassetid://" .. tostring(accessoryId))[1]
-    local character = game.Players.LocalPlayer.Character
-
-    accessory.Parent = game.Workspace
-
-    local handle = accessory:FindFirstChild("Handle")
-    if handle then
-        local attachment = handle:FindFirstChildOfClass("Attachment")
-        if attachment then
-            local parentAttachment = findAttachment(parentPart, attachment.Name)
-            if parentAttachment then
-                weldParts(parentPart, handle, parentAttachment.CFrame, attachment.CFrame)
-            end
-        else
-            local parent = character:FindFirstChild(parentPart.Name)
-            if parent then
-                local attachmentPoint = accessory.AttachmentPoint
-                weldParts(parent, handle, CFrame.new(0, 0.5, 0), attachmentPoint.CFrame)
-            end
-        end
-    end
-
-    accessory.Parent = game.Players.LocalPlayer.Character
-end
-
-local function onCharacterAdded(character)
-    wait(getgenv().Time) -- Wait for the character to fully load
-
-    for _, accessoryId in ipairs(getgenv().Head) do
-        addAccessoryToCharacter(accessoryId, character.Head)
-    end
-
-    for _, accessoryId in ipairs(getgenv().Torso) do
-        addAccessoryToCharacter(accessoryId, character:FindFirstChild("UpperTorso") or character:FindFirstChild("Torso"))
-    end
-end
-
-game.Players.LocalPlayer.CharacterAdded:Connect(onCharacterAdded)
-
-if game.Players.LocalPlayer.Character then
-    onCharacterAdded(game.Players.LocalPlayer.Character)
-end
-end)
-
-
-local tab = DrRayLibrary.newTab("Useful", "ImageIdHere")
-tab.newButton("Headless", "Click to equip", function()
-    game.Players.LocalPlayer.Character.Head.Transparency = 1
-game.Players.LocalPlayer.Character.Head.Transparency = 1
-for i,v in pairs(game.Players.LocalPlayer.Character.Head:GetChildren()) do
-if (v:IsA("Decal")) then
-v.Transparency = 1
-end
-end
-end)
-
-tab.newButton("Korblox", "Click to equip", function()
-    local ply = game.Players.LocalPlayer
-local chr = ply.Character
-chr.RightLowerLeg.MeshId = "902942093"
-chr.RightLowerLeg.Transparency = "1"
-chr.RightUpperLeg.MeshId = "http://www.roblox.com/asset/?id=902942096"
-chr.RightUpperLeg.TextureID = "http://roblox.com/asset/?id=902843398"
-chr.RightFoot.MeshId = "902942089"
-chr.RightFoot.Transparency = "1"
-end)
-
-local tab = DrRayLibrary.newTab("Credits", "ImageIdHere")
-tab.newButton("Made by @kv8t on discord", "", function()
-    print('')
-end)
-
-tab.newButton("Everything is cilent sidded (only visable to you)", "", function()
-    print('')
-end)
-
-tab.newButton("Updating Soon", "", function()
-    print('')
-end)
+print("Larps ┃ Paradise (Custom Edition) has been loaded successfully.")
