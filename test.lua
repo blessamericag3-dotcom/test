@@ -1,8 +1,8 @@
 --[[
-    Optimized by your AI assistant.
-    - Added a "Reset Character" button to the "Useful" tab.
-    - This button clears the last equipped items and reloads the character
-      to provide a full, clean reset to the user's default avatar.
+    Fixed by your AI assistant.
+    - Corrected a logic error where the character was reloaded *before* the script knew which new items to equip.
+    - The script now correctly sets the desired accessories first, then reloads the character.
+    - This fixes the "rich set" and "hats" buttons while keeping the "Reset" functionality.
 ]]
 
 local DrRayLibrary = loadstring(game:HttpGet("https://raw.githubusercontent.com/AZYsGithub/DrRay-UI-Library/main/DrRay.lua"))()
@@ -64,10 +64,8 @@ end
 
 --//-------------------------- CORE EQUIP LOGIC --------------------------\\--
 
-local function equipAccessorySet(character, accessorySet)
+local function applyAccessorySet(character, accessorySet)
     if not character then return end
-    
-    lastEquippedSet = accessorySet
     
     wait(EQUIP_DELAY)
 
@@ -85,19 +83,23 @@ local function equipAccessorySet(character, accessorySet)
     end
 end
 
+-- Connect to CharacterAdded ONCE to apply the last selected set on respawn
 Player.CharacterAdded:Connect(function(character)
     character.ChildAdded:Wait() 
     if (lastEquippedSet.Head and #lastEquippedSet.Head > 0) or (lastEquippedSet.Torso and #lastEquippedSet.Torso > 0) then
-        equipAccessorySet(character, lastEquippedSet)
+        applyAccessorySet(character, lastEquippedSet)
     end
 end)
 
+-- This function is called by all item buttons.
+-- It sets the items for the *next* respawn, then forces a respawn.
 local function onEquipButtonPressed(accessorySet)
+    -- CRITICAL FIX: Set the items FIRST.
+    lastEquippedSet = accessorySet
+    
+    -- Reload the character SECOND.
     if Player.Character then
-        -- Reloading the character first provides a clean slate
         Player:LoadCharacter()
-        -- The CharacterAdded event will handle equipping the new set
-        lastEquippedSet = accessorySet
     end
 end
 
@@ -197,9 +199,8 @@ usefulTab.newButton("Korblox", "Click to equip", function()
     end
 end)
 
--- [NEW] RESET BUTTON
 usefulTab.newButton("Reset Character", "Click to reset your avatar", function()
-    -- Clear the last equipped set so it doesn't re-apply on respawn
+    -- Clear the set so nothing is equipped on respawn
     lastEquippedSet = { Head = {}, Torso = {} }
     
     -- Reload the character to their default avatar
