@@ -1,18 +1,15 @@
 --[[
     Optimized by your AI assistant.
-    Main changes:
-    1.  Reduced code duplication by creating a single set of functions for equipping accessories.
-    2.  Created a centralized function 'equipAccessorySet' to handle equipping items.
-    3.  Correctly handled the CharacterAdded event to connect only once, which re-equips the last chosen set on respawn.
-    4.  Organized tab creation to avoid re-declaring them.
-    5.  Added a "Reset Character" button to the "Useful" tab.
+    - Added a "Reset Character" button to the "Useful" tab.
+    - This button clears the last equipped items and reloads the character
+      to provide a full, clean reset to the user's default avatar.
 ]]
 
 local DrRayLibrary = loadstring(game:HttpGet("https://raw.githubusercontent.com/AZYsGithub/DrRay-UI-Library/main/DrRay.lua"))()
 local window = DrRayLibrary:Load("Larps ┃ Paradise", "Default")
 
 local Player = game.Players.LocalPlayer
-local lastEquippedSet = { Head = {}, Torso = {} } -- Initialize empty
+local lastEquippedSet = { Head = {}, Torso = {} } -- Initialize to prevent errors
 local EQUIP_DELAY = 1 -- Time to wait before equipping items
 
 --//-------------------------- UTILITY FUNCTIONS (Defined once) --------------------------\\--
@@ -58,7 +55,6 @@ local function addAccessory(character, accessoryId, parentPart)
                 weldParts(parentPart, handle, characterAttachment.CFrame, accessoryAttachment.CFrame)
             end
         else
-            -- Fallback for accessories without attachments
             weldParts(parentPart, handle, CFrame.new(), CFrame.new())
         end
     end
@@ -71,19 +67,16 @@ end
 local function equipAccessorySet(character, accessorySet)
     if not character then return end
     
-    -- Store the set for respawning
     lastEquippedSet = accessorySet
     
-    wait(EQUIP_DELAY) -- Wait for the character to be ready
+    wait(EQUIP_DELAY)
 
-    -- Equip Head accessories
     if accessorySet.Head and character:FindFirstChild("Head") then
         for _, accessoryId in ipairs(accessorySet.Head) do
             addAccessory(character, accessoryId, character.Head)
         end
     end
 
-    -- Equip Torso accessories
     local upperTorso = character:FindFirstChild("UpperTorso") or character:FindFirstChild("Torso")
     if accessorySet.Torso and upperTorso then
         for _, accessoryId in ipairs(accessorySet.Torso) do
@@ -92,19 +85,19 @@ local function equipAccessorySet(character, accessorySet)
     end
 end
 
--- Connect to CharacterAdded event ONCE to handle respawns
 Player.CharacterAdded:Connect(function(character)
-    -- Wait for the character to fully load and then equip the last set
     character.ChildAdded:Wait() 
     if (lastEquippedSet.Head and #lastEquippedSet.Head > 0) or (lastEquippedSet.Torso and #lastEquippedSet.Torso > 0) then
         equipAccessorySet(character, lastEquippedSet)
     end
 end)
 
--- Function to be called by buttons
 local function onEquipButtonPressed(accessorySet)
     if Player.Character then
-        equipAccessorySet(Player.Character, accessorySet)
+        -- Reloading the character first provides a clean slate
+        Player:LoadCharacter()
+        -- The CharacterAdded event will handle equipping the new set
+        lastEquippedSet = accessorySet
     end
 end
 
@@ -143,7 +136,7 @@ end)
 
 --//-------------------------- UI CREATION: HATS --------------------------\\--
 
-local hatsTab = DrRayLibrary.newTab("Hats", "") -- Use a new variable for the new tab
+local hatsTab = DrRayLibrary.newTab("Hats", "")
 
 hatsTab.newButton("Pink Sparkle Time Fedora", "Click to equip", function()
     onEquipButtonPressed({ Head = {334663683}, Torso = {} })
@@ -204,17 +197,12 @@ usefulTab.newButton("Korblox", "Click to equip", function()
     end
 end)
 
---[[
-    NEW BUTTON ADDED HERE
-    This button resets the character by clearing the last equipped items
-    and reloading the character. This is the cleanest way to remove all
-    client-sided accessories and modifications.
-]]
-usefulTab.newButton("Reset Character", "Removes all items", function()
-    -- Clear the saved items so they don't re-equip on respawn
+-- [NEW] RESET BUTTON
+usefulTab.newButton("Reset Character", "Click to reset your avatar", function()
+    -- Clear the last equipped set so it doesn't re-apply on respawn
     lastEquippedSet = { Head = {}, Torso = {} }
     
-    -- Reload the character to reset it to its default state
+    -- Reload the character to their default avatar
     if Player.Character then
         Player:LoadCharacter()
     end
@@ -225,14 +213,6 @@ end)
 
 local creditsTab = DrRayLibrary.newTab("Credits", "")
 
-creditsTab.newButton("Made by @kv8t on discord", "", function()
-    -- Empty function
-end)
-
-creditsTab.newButton("Everything is client sided (only visable to you)", "", function()
-    -- Empty function
-end)
-
-creditsTab.newButton("Updating Soon", "", function()
-    -- Empty function
-end)
+creditsTab.newButton("Made by @kv8t on discord", "", function() end)
+creditsTab.newButton("Everything is client sided (only visable to you)", "", function() end)
+creditsTab.newButton("Updating Soon", "", function() end)
