@@ -1,7 +1,7 @@
 --[[
     Paradise Appearance Manager - Rewritten for the modern Obsidian Library
-    - Integrated ThemeManager and SaveManager addons for full UI customization and config saving.
-    - Added a new "UI Settings" tab.
+    - Added "Epic Face" as a toggleable item.
+    - FIX 9: Correctly chained AddKeyPicker to a Label.
     - FIX 8: Correctly saves a COPY of the appearance table instead of a reference.
     - FIX 7: Corrected notification calls to use 'Description' instead of 'Content'.
     - FIX 6: Dropdown now only selects a profile; it no longer auto-applies it.
@@ -15,11 +15,7 @@
 if getgenv().ParadiseLoaded then return end
 getgenv().ParadiseLoaded = true
 
--- Load Library and Addons
-local repo = "https://raw.githubusercontent.com/deividcomsono/Obsidian/main/"
-local Obsidian = loadstring(game:HttpGet(repo .. "Library.lua"))()
-local ThemeManager = loadstring(game:HttpGet(repo .. "addons/ThemeManager.lua"))()
-local SaveManager = loadstring(game:HttpGet(repo .. "addons/SaveManager.lua"))()
+local Obsidian = loadstring(game:HttpGet("https://raw.githubusercontent.com/deividcomsono/Obsidian/main/Library.lua"))()
 
 local Window = Obsidian:CreateWindow({
     Name = "Larps ┗ Paradise",
@@ -37,7 +33,7 @@ local SCRIPT_ACCESSORY_TAG = "DrRayScriptedAccessory"
 local profilesFileName = "Profiles.json"
 local autoLoadFileName = "AutoLoadProfile.txt"
 
-local originalLimbData, removedHairStorage, autoEquipSelection = {}, {}, {}
+local originalLimbData, removedHairStorage, autoEquipSelection, originalFaceTexture = {}, {}, {}, nil
 local characterAddedConnection = nil
 local savedProfiles, selectedProfileName = {}, nil
 local profileNameInput = ""
@@ -177,11 +173,20 @@ local function performFullReset(chr)
     clearOldAccessories(chr)
     applyAnimationPack(chr, "None")
     if chr and chr:FindFirstChild("Head") then
-        chr.Head.Transparency = 0
-        for _, d in ipairs(chr.Head:GetChildren()) do
+        local head = chr:FindFirstChild("Head")
+        head.Transparency = 0
+        for _, d in ipairs(head:GetChildren()) do
             if d:IsA("Decal") then d.Transparency = 0 end
         end
+        -- Restore original face if one was saved
+        if originalFaceTexture then
+            local faceDecal = head:FindFirstChild("face")
+            if faceDecal then
+                faceDecal.Texture = originalFaceTexture
+            end
+        end
     end
+    originalFaceTexture = nil
     for limb, data in pairs(originalLimbData) do
         if chr and chr:FindFirstChild(limb) then
             for prop, val in pairs(data) do chr[limb][prop] = val end
@@ -237,6 +242,25 @@ local allActions = {
             removedHairStorage = {}
         end
     end },
+    ["Epic Face"] = { type = "Function", action = function(c, e)
+        if not c then return end
+        local head = c:FindFirstChild("Head")
+        if not head then return end
+        local faceDecal = head:FindFirstChild("face")
+        if not faceDecal then return end
+
+        if e then -- If toggled ON
+            if not originalFaceTexture then
+                originalFaceTexture = faceDecal.Texture
+            end
+            faceDecal.Texture = "rbxassetid://42070872"
+        else -- If toggled OFF
+            if originalFaceTexture then
+                faceDecal.Texture = originalFaceTexture
+                originalFaceTexture = nil
+            end
+        end
+    end },
     ["Valkyrie Helm"] = { type = "Accessory", action = { Head = { 1365767 } } },
     ["Wings of Duality"] = { type = "Accessory", action = { Torso = { 493489765 } } },
     ["Dominus Praefectus"] = { type = "Accessory", action = { Head = { 527365852 } } },
@@ -274,6 +298,7 @@ characterAddedConnection = Player.CharacterAdded:Connect(function(c)
     c:WaitForChild("Humanoid")
     originalAnimations = {}
     originalLimbData, removedHairStorage = {}, {}
+    originalFaceTexture = nil
     task.wait(0.2)
     syncCharacterState(c)
 end)
@@ -518,7 +543,7 @@ ThemeManager:SetLibrary(Obsidian)
 SaveManager:SetLibrary(Obsidian)
 
 SaveManager:IgnoreThemeSettings()
-SaveManager:SetIgnoreIndexes({ "ToggleUIKeybind" }) -- Don't save the menu keybind with configs
+SaveManager:SetIgnoreIndexes({ "ToggleUIKeybind" })
 
 ThemeManager:SetFolder("Paradise")
 SaveManager:SetFolder("Paradise")
@@ -548,5 +573,4 @@ if isfile and isfile(autoLoadFileName) then
     end
 end
 
--- Load the main UI config last
 SaveManager:LoadAutoloadConfig()
