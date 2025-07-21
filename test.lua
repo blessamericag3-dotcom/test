@@ -1,16 +1,3 @@
---[[
-    Paradise Appearance Manager - Rewritten for the modern Obsidian Library
-    - FIX 9: Correctly chained AddKeyPicker to a Label instead of calling it on a Groupbox.
-    - FIX 8: Correctly saves a COPY of the appearance table instead of a reference.
-    - FIX 7: Corrected notification calls to use 'Description' instead of 'Content'.
-    - FIX 6: Dropdown now only selects a profile; it no longer auto-applies it.
-    - FIX 5: Corrected unload call from Window:Unload() to Obsidian:Unload().
-    - FIX 4: Implemented a full-width layout for tabs.
-    - FIX 3: Placed all UI elements inside Groupboxes.
-    - FIX 2: Corrected tab creation call from :MakeTab() to :AddTab().
-    - FIX 1: Corrected window creation call from :MakeWindow() to :CreateWindow().
-]]
-
 if getgenv().ParadiseLoaded then return end
 getgenv().ParadiseLoaded = true
 
