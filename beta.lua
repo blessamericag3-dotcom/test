@@ -1,6 +1,6 @@
 --[[
     Paradise Appearance Manager - Rewritten for the modern Obsidian Library
-    - ADDED: Chat Bypasser feature in a new "Chat" tab.
+    - FIX 10: Added support for the new TextChatService, making the chat bypasser compatible with modern games.
     - FIX 9: Correctly chained AddKeyPicker to a Label instead of calling it on a Groupbox.
     - FIX 8: Correctly saves a COPY of the appearance table instead of a reference.
     - FIX 7: Corrected notification calls to use 'Description' instead of 'Content'.
@@ -30,6 +30,7 @@ local Window = Obsidian:CreateWindow({
 local Player = game:GetService("Players").LocalPlayer
 local HttpService = game:GetService("HttpService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local TextChatService = game:GetService("TextChatService")
 local SCRIPT_ACCESSORY_TAG = "DrRayScriptedAccessory"
 local profilesFileName = "Profiles.json"
 local autoLoadFileName = "AutoLoadProfile.txt"
@@ -300,7 +301,19 @@ chatGroup:AddButton("SendBypassedMessageButton", {
     Func = function()
         if chatMessageInput and chatMessageInput ~= "" then
             local bypassedMessage = bypassText(chatMessageInput)
-            ReplicatedStorage.DefaultChatSystemChatEvents.SayMessageRequest:FireServer(bypassedMessage, "All")
+            
+            -- NEW: Check for modern TextChatService first
+            local textChatRemote = TextChatService and TextChatService:FindFirstChild("TextChatCommands", true) and TextChatService.TextChatCommands:FindFirstChild("SayMessageRequest")
+            local legacyChatRemote = ReplicatedStorage:FindFirstChild("DefaultChatSystemChatEvents") and ReplicatedStorage.DefaultChatSystemChatEvents:FindFirstChild("SayMessageRequest")
+
+            if textChatRemote then
+                textChatRemote:FireServer(bypassedMessage, "All")
+            elseif legacyChatRemote then
+                legacyChatRemote:FireServer(bypassedMessage, "All")
+            else
+                Obsidian:Notify({ Title = "Error", Description = "Could not find a valid chat remote." })
+            end
+            
             Library.Options.ChatInput:SetValue("")
         end
     end
