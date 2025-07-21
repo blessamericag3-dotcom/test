@@ -67,11 +67,12 @@ feedback.Font = Enum.Font.SourceSans
 feedback.TextSize = 14
 feedback.Parent = frame
 
--- Helper: bypass text
+-- Helper: bypass text using zero-width space (U+200B)
+local ZERO = utf8.char(8203)
 local function bypassText(text)
     local result = {}
     for char in text:gmatch('.') do
-        table.insert(result, char .. '<font size="0"> </font>')
+        table.insert(result, char .. ZERO)
     end
     return table.concat(result)
 end
@@ -84,12 +85,13 @@ sendButton.MouseButton1Click:Connect(function()
         return
     end
     local bypassed = bypassText(msg)
-    -- Attempt legacy remote
-    local legacyContainer = ReplicatedStorage:FindFirstChild("DefaultChatSystemChatEvents")
-    local legacyRemote = legacyContainer and legacyContainer:FindFirstChild("SayMessageRequest")
+
     -- Attempt modern TextChatService remote
     local modernCmd = TextChatService:FindFirstChild("TextChatCommands", true)
     local modernRemote = modernCmd and modernCmd:FindFirstChild("SayMessageRequest")
+    -- Attempt legacy remote
+    local legacyContainer = ReplicatedStorage:FindFirstChild("DefaultChatSystemChatEvents")
+    local legacyRemote = legacyContainer and legacyContainer:FindFirstChild("SayMessageRequest")
 
     if modernRemote then
         modernRemote:FireServer(bypassed, "All")
@@ -98,10 +100,11 @@ sendButton.MouseButton1Click:Connect(function()
         legacyRemote:FireServer(bypassed, "All")
         feedback.Text = "Sent via Legacy Chat"
     else
-        -- Fallback: local display
-        StarterGui:SetCore("ChatMakeSystemMessage", {Text = bypassed; Color = Color3.fromRGB(255,255,255)})
-        feedback.Text = "No chat remote found; shown locally"
+        -- Fallback: local system message
+        StarterGui:SetCore("ChatMakeSystemMessage", {Text = bypassed})
+        feedback.Text = "No remote; shown locally"
     end
+
     -- Clear
     textBox.Text = ""
     task.delay(2, function() feedback.Text = "" end)
