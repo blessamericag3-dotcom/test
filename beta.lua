@@ -1,16 +1,15 @@
 --[[
     Paradise Appearance Manager - Rewritten for the modern Obsidian Library
-    - FIX 11: Corrected the arguments for the TextChatService remote event, making chat bypasser functional in modern games.
-    - FIX 10: Added support for the new TextChatService.
-    - FIX 9: Correctly chained AddKeyPicker to a Label.
-    - FIX 8: Correctly saves a COPY of the appearance table.
-    - FIX 7: Corrected notification calls to use 'Description'.
-    - FIX 6: Dropdown now only selects a profile.
-    - FIX 5: Corrected unload call to Obsidian:Unload().
+    - Added exclusive animation pack support with profile saving.
+    - FIX 9: Correctly chained AddKeyPicker to a Label instead of calling it on a Groupbox.
+    - FIX 8: Correctly saves a COPY of the appearance table instead of a reference.
+    - FIX 7: Corrected notification calls to use 'Description' instead of 'Content'.
+    - FIX 6: Dropdown now only selects a profile; it no longer auto-applies it.
+    - FIX 5: Corrected unload call from Window:Unload() to Obsidian:Unload().
     - FIX 4: Implemented a full-width layout for tabs.
     - FIX 3: Placed all UI elements inside Groupboxes.
-    - FIX 2: Corrected tab creation call to :AddTab().
-    - FIX 1: Corrected window creation call to :CreateWindow().
+    - FIX 2: Corrected tab creation call from :MakeTab() to :AddTab().
+    - FIX 1: Corrected window creation call from :MakeWindow() to :CreateWindow().
 ]]
 
 if getgenv().ParadiseLoaded then return end
@@ -30,16 +29,14 @@ local Window = Obsidian:CreateWindow({
 
 local Player = game:GetService("Players").LocalPlayer
 local HttpService = game:GetService("HttpService")
-local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local TextChatService = game:GetService("TextChatService")
 local SCRIPT_ACCESSORY_TAG = "DrRayScriptedAccessory"
 local profilesFileName = "Profiles.json"
 local autoLoadFileName = "AutoLoadProfile.txt"
 
-local originalLimbData, removedHairStorage, autoEquipSelection = {}, {}, {}
+local originalLimbData, removedHairStorage, autoEquipSelection, originalAnimateScript = {}, {}, {}, nil
 local characterAddedConnection = nil
 local savedProfiles, selectedProfileName = {}, nil
-local profileNameInput, chatMessageInput = "", ""
+local profileNameInput = ""
 
 -- HELPER: Creates a true copy of a table, not a reference.
 local function copyTable(original)
@@ -127,6 +124,16 @@ local function performFullReset(chr)
         if hair and not hair.Parent and chr then hair.Parent = chr end
     end
     removedHairStorage = {}
+    
+    -- Restore original animation script if it exists
+    if originalAnimateScript and chr then
+        local currentAnimate = chr:FindFirstChild("Animate")
+        if currentAnimate then currentAnimate:Destroy() end
+        local restoredAnimate = originalAnimateScript:Clone()
+        restoredAnimate.Parent = chr
+        restoredAnimate.Disabled = false
+        originalAnimateScript = nil
+    end
 end
 
 local allActions = {
@@ -187,13 +194,24 @@ local allActions = {
     ["Purple Sparkle Time Fedora"] = { type = "Accessory", action = { Head = { 63043890 } } }
 }
 
+local animationPacks = {
+    ["Old School Animations"] = { type = "Animation", id = 1211149448 },
+    ["Ninja Animations"] = { type = "Animation", id = 1211152809 },
+    ["Levitation Animations"] = { type = "Animation", id = 1211151628 }
+}
+
 local function applyAppearance(char, appearanceData)
     if not char then return end
     for name, enabled in pairs(appearanceData) do
-        if enabled and allActions[name] then
-            local a = allActions[name]
-            if a.type == "Accessory" then addAccessory(char, a.action)
-            else pcall(a.action, char, true) end
+        if enabled then
+            local actionInfo = allActions[name] or animationPacks[name]
+            if actionInfo then
+                if actionInfo.type == "Accessory" then addAccessory(char, actionInfo.action)
+                elseif actionInfo.type == "Function" then pcall(actionInfo.action, char, true)
+                elseif actionInfo.type == "Animation" then
+                    -- Animation logic is handled by its toggle callback
+                end
+            end
         end
     end
 end
@@ -206,6 +224,7 @@ end
 
 characterAddedConnection = Player.CharacterAdded:Connect(function(c)
     c:WaitForChild("Humanoid")
+    originalAnimateScript = nil
     originalLimbData, removedHairStorage = {}, {}
     task.wait(0.2)
     syncCharacterState(c)
@@ -214,9 +233,11 @@ end)
 local function updateTogglesFromState()
     for name, _ in pairs(allActions) do
         local toggle = Library.Toggles[name]
-        if toggle then
-            toggle:SetValue(autoEquipSelection[name] or false)
-        end
+        if toggle then toggle:SetValue(autoEquipSelection[name] or false) end
+    end
+    for name, _ in pairs(animationPacks) do
+        local toggle = Library.Toggles[name]
+        if toggle then toggle:SetValue(autoEquipSelection[name] or false) end
     end
 end
 
@@ -245,7 +266,6 @@ end
 
 -- Create Tabs
 local appearanceTab = Window:AddTab("Appearance", "shirt")
-local chatTab = Window:AddTab("Chat", "message-square")
 local profilesTab = Window:AddTab("Profiles", "save")
 local usefulTab = Window:AddTab("Useful", "wrench")
 
@@ -261,7 +281,6 @@ end
 
 -- Apply this fix to all created tabs
 makeTabFullWidth(appearanceTab)
-makeTabFullWidth(chatTab)
 makeTabFullWidth(profilesTab)
 makeTabFullWidth(usefulTab)
 
@@ -273,52 +292,56 @@ for name, _ in pairs(allActions) do
         Default = autoEquipSelection[name] or false,
         Callback = function(value)
             autoEquipSelection[name] = value
-            syncCharacterState(Player.Character)
+            allActions[name].action(Player.Character, value)
         end
     })
 end
 
--- Populate Chat Tab
-local chatGroup = chatTab:AddLeftGroupbox("Chat Bypasser")
-chatGroup:AddInput("ChatInput", {
-    Text = "Message",
-    Placeholder = "Enter your message here...",
-    Callback = function(text)
-        chatMessageInput = text
-    end
-})
+-- Add Animation Packs
+local animationGroup = appearanceTab:AddLeftGroupbox("Animation Packs")
+for name, info in pairs(animationPacks) do
+    animationGroup:AddToggle(name, {
+        Text = name,
+        Default = autoEquipSelection[name] or false,
+        Callback = function(value)
+            autoEquipSelection[name] = value
+            local char = Player.Character
+            if not char then return end
 
-local function bypassText(text)
-    local bypassedChars = {}
-    for char in string.gmatch(text, ".") do
-        table.insert(bypassedChars, char .. "<font size=\"0\"> </font>")
-    end
-    return table.concat(bypassedChars)
-end
+            if value then -- Turning ON
+                -- Turn off all other animation packs
+                for otherName, _ in pairs(animationPacks) do
+                    if otherName ~= name and autoEquipSelection[otherName] then
+                        autoEquipSelection[otherName] = false
+                        Library.Toggles[otherName]:SetValue(false)
+                    end
+                end
 
-chatGroup:AddButton("SendBypassedMessageButton", {
-    Text = "Send Bypassed Message",
-    DoubleClick = false,
-    Func = function()
-        if chatMessageInput and chatMessageInput ~= "" then
-            local bypassedMessage = bypassText(chatMessageInput)
-            
-            local textChatRemote = TextChatService and TextChatService:FindFirstChild("TextChatCommands", true) and TextChatService.TextChatCommands:FindFirstChild("SayMessageRequest")
-            local legacyChatRemote = ReplicatedStorage:FindFirstChild("DefaultChatSystemChatEvents") and ReplicatedStorage.DefaultChatSystemChatEvents:FindFirstChild("SayMessageRequest")
+                local existingAnimate = char:FindFirstChild("Animate")
+                if existingAnimate then
+                    if not originalAnimateScript then
+                        originalAnimateScript = existingAnimate:Clone()
+                    end
+                    existingAnimate:Destroy()
+                end
 
-            if textChatRemote then
-                -- CORRECTED: Modern chat system uses a different argument structure
-                textChatRemote:FireServer(bypassedMessage, {}) 
-            elseif legacyChatRemote then
-                legacyChatRemote:FireServer(bypassedMessage, "All")
-            else
-                Obsidian:Notify({ Title = "Error", Description = "Could not find a valid chat remote." })
+                local ok, newAnimate = pcall(function() return game:GetObjects("rbxassetid://" .. info.id)[1] end)
+                if ok and newAnimate then
+                    newAnimate.Parent = char
+                    newAnimate.Disabled = false
+                end
+            else -- Turning OFF
+                if originalAnimateScript then
+                    local currentAnimate = char:FindFirstChild("Animate")
+                    if currentAnimate then currentAnimate:Destroy() end
+                    local restoredAnimate = originalAnimateScript:Clone()
+                    restoredAnimate.Parent = char
+                    restoredAnimate.Disabled = false
+                end
             end
-            
-            Library.Options.ChatInput:SetValue("")
         end
-    end
-})
+    })
+end
 
 -- Populate Profiles Tab
 local profilesGroup = profilesTab:AddLeftGroupbox("Management")
@@ -342,7 +365,7 @@ profilesGroup:AddButton("ApplyProfileButton", {
             performFullReset(Player.Character)
             autoEquipSelection = copyTable(savedProfiles[selectedProfileName])
             updateTogglesFromState()
-            applyAppearance(Player.Character, autoEquipSelection)
+            syncCharacterState(Player.Character) -- Use sync to apply everything
             Obsidian:Notify({ Title = "Profile Applied", Description = "'" .. selectedProfileName .. "' has been applied." })
         else
             Obsidian:Notify({ Title = "Error", Description = "No profile is selected to apply." })
