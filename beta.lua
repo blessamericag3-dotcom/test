@@ -1,6 +1,7 @@
 --[[
     Paradise Appearance Manager - Rewritten for the modern Obsidian Library
-    - Added Animation Pack support with a dropdown and profile integration.
+    - Integrated ThemeManager and SaveManager addons for full UI customization and config saving.
+    - Added a new "UI Settings" tab.
     - FIX 8: Correctly saves a COPY of the appearance table instead of a reference.
     - FIX 7: Corrected notification calls to use 'Description' instead of 'Content'.
     - FIX 6: Dropdown now only selects a profile; it no longer auto-applies it.
@@ -14,7 +15,11 @@
 if getgenv().ParadiseLoaded then return end
 getgenv().ParadiseLoaded = true
 
-local Obsidian = loadstring(game:HttpGet("https://raw.githubusercontent.com/deividcomsono/Obsidian/main/Library.lua"))()
+-- Load Library and Addons
+local repo = "https://raw.githubusercontent.com/deividcomsono/Obsidian/main/"
+local Obsidian = loadstring(game:HttpGet(repo .. "Library.lua"))()
+local ThemeManager = loadstring(game:HttpGet(repo .. "addons/ThemeManager.lua"))()
+local SaveManager = loadstring(game:HttpGet(repo .. "addons/SaveManager.lua"))()
 
 local Window = Obsidian:CreateWindow({
     Name = "Larps ┗ Paradise",
@@ -37,11 +42,10 @@ local characterAddedConnection = nil
 local savedProfiles, selectedProfileName = {}, nil
 local profileNameInput = ""
 
--- NEW: Animation data and state variables
 local originalAnimations = {}
 local selectedAnimationPack = "None"
 local animationPacks = {
-    ["None"] = {}, -- This will be populated with the character's original animations
+    ["None"] = {},
     ["Vampire"] = {
         idle = { "rbxassetid://1083445855", "rbxassetid://1083450166" },
         walk = "rbxassetid://1083473930",
@@ -52,11 +56,11 @@ local animationPacks = {
         swim = "rbxassetid://1083222527",
         swimidle = "rbxassetid://1083225406"
     }
-    -- You can add more animation packs here in the same format
 }
 
--- HELPER: Creates a true copy of a table, not a reference.
+-- HELPER: Creates a true copy of a table, now with a safety check.
 local function copyTable(original)
+    if type(original) ~= "table" then return {} end
     local newTable = {}
     for key, value in pairs(original) do
         if type(value) == "table" then
@@ -127,7 +131,6 @@ local function addAccessory(char, accessoryData)
     end
 end
 
--- NEW: Animation handling functions
 local function captureOriginalAnimations(animateScript)
     if not animateScript or next(originalAnimations) then return end
     
@@ -142,7 +145,7 @@ local function captureOriginalAnimations(animateScript)
         swimidle = animateScript.swimidle.SwimIdle.AnimationId
     }
     originalAnimations = anims
-    animationPacks["None"] = anims -- Set the "None" pack to the captured originals
+    animationPacks["None"] = anims
 end
 
 local function applyAnimationPack(char, packName)
@@ -151,15 +154,11 @@ local function applyAnimationPack(char, packName)
         local animate = char:WaitForChild("Animate", 5)
         if not animate then return end
         
-        local success = pcall(function()
-            captureOriginalAnimations(animate) -- Capture originals if we haven't already
-        end)
-        if not success then return end
-
+        pcall(captureOriginalAnimations, animate)
+        
         local pack = animationPacks[packName]
         if not pack then return end
         
-        -- Use a small delay to ensure animations apply correctly
         task.wait(0.1)
 
         animate.idle.Animation1.AnimationId = pack.idle and pack.idle[1] or originalAnimations.idle[1]
@@ -176,7 +175,7 @@ end
 
 local function performFullReset(chr)
     clearOldAccessories(chr)
-    applyAnimationPack(chr, "None") -- Reset animations
+    applyAnimationPack(chr, "None")
     if chr and chr:FindFirstChild("Head") then
         chr.Head.Transparency = 0
         for _, d in ipairs(chr.Head:GetChildren()) do
@@ -195,8 +194,66 @@ local function performFullReset(chr)
     removedHairStorage = {}
 end
 
+local allActions = {
+    ["Headless"] = { type = "Function", action = function(c, e)
+        if c and c:FindFirstChild("Head") then
+            c.Head.Transparency = e and 1 or 0
+            for _, v in ipairs(c.Head:GetChildren()) do
+                if v:IsA("Decal") then v.Transparency = e and 1 or 0 end
+            end
+        end
+    end },
+    ["Korblox"] = { type = "Function", action = function(c, e)
+        if not (c and c.RightLowerLeg and c.RightUpperLeg and c.RightFoot) then return end
+        if e then
+            for _, part in ipairs({"RightLowerLeg", "RightUpperLeg", "RightFoot"}) do
+                local p = c:FindFirstChild(part)
+                if p and not originalLimbData[part] then
+                    originalLimbData[part] = { MeshId = p.MeshId, Transparency = p.Transparency, TextureID = p.TextureID }
+                end
+            end
+            c.RightLowerLeg.MeshId, c.RightLowerLeg.Transparency = "rbxassetid://902942093", 1
+            c.RightUpperLeg.MeshId, c.RightUpperLeg.TextureID = "rbxassetid://902942096", "rbxassetid://902843398"
+            c.RightFoot.MeshId, c.RightFoot.Transparency = "rbxassetid://902942089", 1
+        else performFullReset(c) end
+    end },
+    ["Remove Hair"] = { type = "Function", action = function(c, e)
+        if not c then return end
+        if e then
+            for _, hair in ipairs(removedHairStorage) do
+                if hair and not hair.Parent then hair:Destroy() end
+            end
+            removedHairStorage = {}
+            for _, h in ipairs(c:GetChildren()) do
+                if h:IsA("Accessory") and h.AccessoryType == Enum.AccessoryType.Hair then
+                    table.insert(removedHairStorage, h)
+                    h.Parent = nil
+                end
+            end
+        else
+            for _, hair in ipairs(removedHairStorage) do
+                if hair and not hair.Parent then hair.Parent = c end
+            end
+            removedHairStorage = {}
+        end
+    end },
+    ["Valkyrie Helm"] = { type = "Accessory", action = { Head = { 1365767 } } },
+    ["Wings of Duality"] = { type = "Accessory", action = { Torso = { 493489765 } } },
+    ["Dominus Praefectus"] = { type = "Accessory", action = { Head = { 527365852 } } },
+    ["Fiery Horns of the Netherworld"] = { type = "Accessory", action = { Head = { 215718515 } } },
+    ["Blackvalk"] = { type = "Accessory", action = { Head = { 124730194 } } },
+    ["Frozen Horns of the Frigid Planes"] = { type = "Accessory", action = { Head = { 74891470 } } },
+    ["Silver King of the Night"] = { type = "Accessory", action = { Head = { 439945661 } } },
+    ["Poisoned Horns of the Toxic Wasteland"] = { type = "Accessory", action = { Head = { 1744060292 } } },
+    ["Pink Sparkle Time Fedora"] = { type = "Accessory", action = { Head = { 334663683 } } },
+    ["Midnight Blue Sparkle Time Fedora"] = { type = "Accessory", action = { Head = { 119916949 } } },
+    ["Green Sparkle Time Fedora"] = { type = "Accessory", action = { Head = { 100929604 } } },
+    ["Red Sparkle Time Fedora"] = { type = "Accessory", action = { Head = { 72082328 } } },
+    ["Purple Sparkle Time Fedora"] = { type = "Accessory", action = { Head = { 63043890 } } }
+}
+
 local function applyAppearance(char, appearanceData)
-    if not char then return end
+    if not char or type(appearanceData) ~= "table" then return end
     for name, enabled in pairs(appearanceData) do
         if enabled and allActions[name] then
             local a = allActions[name]
@@ -257,6 +314,7 @@ end
 local appearanceTab = Window:AddTab("Appearance", "shirt")
 local profilesTab = Window:AddTab("Profiles", "save")
 local usefulTab = Window:AddTab("Useful", "wrench")
+local uiSettingsTab = Window:AddTab("UI Settings", "settings")
 
 -- Function to force a tab's layout to be full-width instead of two columns
 local function makeTabFullWidth(tab)
@@ -321,7 +379,7 @@ profilesGroup:AddButton("ApplyProfileButton", {
             local profileData = savedProfiles[selectedProfileName]
             autoEquipSelection = copyTable(profileData)
             selectedAnimationPack = profileData._AnimationPack or "None"
-            autoEquipSelection._AnimationPack = nil -- Remove it from the main table
+            autoEquipSelection._AnimationPack = nil
             
             updateTogglesFromState()
             Library.Options.AnimationPackSelector:SetValue(selectedAnimationPack)
@@ -455,6 +513,19 @@ usefulGroup:AddButton("UnloadButton", {
     end
 })
 
+-- Setup Addons
+ThemeManager:SetLibrary(Obsidian)
+SaveManager:SetLibrary(Obsidian)
+
+SaveManager:IgnoreThemeSettings()
+SaveManager:SetIgnoreIndexes({ "ToggleUIKeybind" }) -- Don't save the menu keybind with configs
+
+ThemeManager:SetFolder("Paradise")
+SaveManager:SetFolder("Paradise")
+
+ThemeManager:ApplyToTab(uiSettingsTab)
+SaveManager:BuildConfigSection(uiSettingsTab)
+
 -- Initial load sequence
 loadProfilesFromFile()
 Library.Options.ProfileSelector:SetValues(getDropdownOptions())
@@ -476,3 +547,6 @@ if isfile and isfile(autoLoadFileName) then
         syncCharacterState(Player.Character)
     end
 end
+
+-- Load the main UI config last
+SaveManager:LoadAutoloadConfig()
