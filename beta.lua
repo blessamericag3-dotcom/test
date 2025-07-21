@@ -1,45 +1,39 @@
 --[[
-    Paradise Appearance Manager - Rewritten for the modern Obsidian Library
-    - Added "Epic Face" as a toggleable item.
-    - FIX 9: Correctly chained AddKeyPicker to a Label.
-    - FIX 8: Correctly saves a COPY of the appearance table instead of a reference.
-    - FIX 7: Corrected notification calls to use 'Description' instead of 'Content'.
-    - FIX 6: Dropdown now only selects a profile; it no longer auto-applies it.
-    - FIX 5: Corrected unload call from Window:Unload() to Obsidian:Unload().
-    - FIX 4: Implemented a full-width layout for tabs.
-    - FIX 3: Placed all UI elements inside Groupboxes.
-    - FIX 2: Corrected tab creation call from :MakeTab() to :AddTab().
-    - FIX 1: Corrected window creation call from :MakeWindow() to :CreateWindow().
+    Paradise Appearance Manager - Final Version
+    - Added "Outfit Management" section with toggles to remove original Shirts, T-Shirts, and Accessories.
+    - Added a "Naked" toggle under Body Modifications.
+    - FIX 15: Switched to the universal 'Color' property for skin tones.
+    - FIX 14: Corrected T-shirt creation to use "ShirtGraphic".
 ]]
 
 if getgenv().ParadiseLoaded then return end
-getgenv().ParadiseLoaded = true
 
-local Obsidian = loadstring(game:HttpGet("https://raw.githubusercontent.com/deividcomsono/Obsidian/main/Library.lua"))()
+-- Load Library and Addons
+local repo = "https://raw.githubusercontent.com/deividcomsono/Obsidian/main/"
+local success, Obsidian = pcall(function() return loadstring(game:HttpGet(repo .. "Library.lua"))() end)
+if not success or not Obsidian then
+    warn("Paradise Manager: Failed to load the core Obsidian library. The script will not run.")
+    return
+end
+
+local ThemeManager = loadstring(game:HttpGet(repo .. "addons/ThemeManager.lua"))()
+local SaveManager = loadstring(game:HttpGet(repo .. "addons/SaveManager.lua"))()
+
+getgenv().ParadiseLoaded = true
 
 local Window = Obsidian:CreateWindow({
     Name = "Larps ┗ Paradise",
     Title = "Paradise Interface",
     SubTitle = "by joseph & AI",
-    Draggable = true,
-    SaveManager = {
-        Enabled = false
-    }
+    Draggable = true
 })
 
 local Player = game:GetService("Players").LocalPlayer
-local HttpService = game:GetService("HttpService")
-local SCRIPT_ACCESSORY_TAG = "DrRayScriptedAccessory"
-local profilesFileName = "Profiles.json"
-local autoLoadFileName = "AutoLoadProfile.txt"
-
-local originalLimbData, removedHairStorage, autoEquipSelection, originalFaceTexture = {}, {}, {}, nil
+local originalLimbData, removedHairStorage, originalFaceTexture, scriptedShirtGraphic, originalPartColors = {}, {}, nil, nil, {}
+local originalClothing = { Shirt = nil, Pants = nil, TShirts = {}, Accessories = {} }
 local characterAddedConnection = nil
-local savedProfiles, selectedProfileName = {}, nil
-local profileNameInput = ""
 
 local originalAnimations = {}
-local selectedAnimationPack = "None"
 local animationPacks = {
     ["None"] = {},
     ["Vampire"] = {
@@ -53,8 +47,15 @@ local animationPacks = {
         swimidle = "rbxassetid://1083225406"
     }
 }
+local clothingItems = {
+    TShirt = {
+        ["None"] = nil,
+        ["Oh Noez!"] = "http://www.roblox.com/asset/?id=1641286",
+        ["Spread The Lulz!"] = "http://www.roblox.com/asset/?id=24774765",
+    }
+}
 
--- HELPER: Creates a true copy of a table, now with a safety check.
+-- HELPER: Creates a true copy of a table.
 local function copyTable(original)
     if type(original) ~= "table" then return {} end
     local newTable = {}
@@ -72,6 +73,7 @@ end
 local function getTableKeys(tbl)
     local keys = {}
     for k in pairs(tbl) do table.insert(keys, k) end
+    table.sort(keys)
     return keys
 end
 
@@ -92,7 +94,7 @@ end
 local function clearOldAccessories(char)
     if not char then return end
     for _, c in ipairs(char:GetChildren()) do
-        if c:IsA("Accessory") and c:FindFirstChild(SCRIPT_ACCESSORY_TAG) then
+        if c:IsA("Accessory") and c:FindFirstChild("DrRayScriptedAccessory") then
             c:Destroy()
         end
     end
@@ -109,7 +111,7 @@ local function addAccessory(char, accessoryData)
                 local ok, a = pcall(function() return game:GetObjects("rbxassetid://" .. id)[1] end)
                 if ok and a then
                     local tag = Instance.new("BoolValue")
-                    tag.Name, tag.Parent = SCRIPT_ACCESSORY_TAG, a
+                    tag.Name, tag.Parent = "DrRayScriptedAccessory", a
                     a.Parent = workspace
                     local handle = a:FindFirstChild("Handle")
                     if handle then
@@ -169,22 +171,70 @@ local function applyAnimationPack(char, packName)
     end)()
 end
 
+local function applyTShirt(char, tShirtName)
+    if not char then return end
+    
+    if scriptedShirtGraphic and scriptedShirtGraphic.Parent then
+        scriptedShirtGraphic:Destroy()
+    end
+    scriptedShirtGraphic = nil
+    
+    local tShirtId = clothingItems.TShirt[tShirtName]
+    
+    if tShirtId then
+        local newShirtGraphic = Instance.new("ShirtGraphic", char)
+        newShirtGraphic.Graphic = tShirtId
+        scriptedShirtGraphic = newShirtGraphic
+    end
+end
+
+local bodyPartNames = { "Head", "UpperTorso", "LowerTorso", "LeftUpperArm", "LeftLowerArm", "LeftHand", "RightUpperArm", "RightLowerArm", "RightHand", "LeftUpperLeg", "LeftLowerLeg", "LeftFoot", "RightUpperLeg", "RightLowerLeg", "RightFoot" }
+local function applySkinColor(char, color)
+    if not char then return end
+    for _, partName in ipairs(bodyPartNames) do
+        local part = char:FindFirstChild(partName)
+        if part and part:IsA("BasePart") then
+            if not originalPartColors[partName] then
+                originalPartColors[partName] = part.Color
+            end
+            part.Color = color
+        end
+    end
+end
+
 local function performFullReset(chr)
     clearOldAccessories(chr)
     applyAnimationPack(chr, "None")
-    if chr and chr:FindFirstChild("Head") then
-        local head = chr:FindFirstChild("Head")
-        head.Transparency = 0
-        for _, d in ipairs(head:GetChildren()) do
-            if d:IsA("Decal") then d.Transparency = 0 end
+    if chr then
+        if scriptedShirtGraphic and scriptedShirtGraphic.Parent then
+            scriptedShirtGraphic:Destroy()
         end
-        -- Restore original face if one was saved
-        if originalFaceTexture then
-            local faceDecal = head:FindFirstChild("face")
-            if faceDecal then
-                faceDecal.Texture = originalFaceTexture
+        scriptedShirtGraphic = nil
+
+        if chr:FindFirstChild("Head") then
+            local head = chr:FindFirstChild("Head")
+            head.Transparency = 0
+            for _, d in ipairs(head:GetChildren()) do
+                if d:IsA("Decal") then d.Transparency = 0 end
+            end
+            if originalFaceTexture then
+                local faceDecal = head:FindFirstChild("face")
+                if faceDecal then faceDecal.Texture = originalFaceTexture end
             end
         end
+        
+        for partName, color in pairs(originalPartColors) do
+            local part = chr:FindFirstChild(partName)
+            if part then part.Color = color end
+        end
+        originalPartColors = {}
+        
+        -- Restore any original clothing
+        if originalClothing.Shirt and not originalClothing.Shirt.Parent then originalClothing.Shirt.Parent = chr end
+        if originalClothing.Pants and not originalClothing.Pants.Parent then originalClothing.Pants.Parent = chr end
+        for _, item in ipairs(originalClothing.TShirts) do if item and not item.Parent then item.Parent = chr end end
+        for _, item in ipairs(originalClothing.Accessories) do if item and not item.Parent then item.Parent = chr end end
+        originalClothing = { Shirt = nil, Pants = nil, TShirts = {}, Accessories = {} }
     end
     originalFaceTexture = nil
     for limb, data in pairs(originalLimbData) do
@@ -200,7 +250,7 @@ local function performFullReset(chr)
 end
 
 local allActions = {
-    ["Headless"] = { type = "Function", action = function(c, e)
+    ["Headless"] = { category = "Body", type = "Function", action = function(c, e)
         if c and c:FindFirstChild("Head") then
             c.Head.Transparency = e and 1 or 0
             for _, v in ipairs(c.Head:GetChildren()) do
@@ -208,7 +258,7 @@ local allActions = {
             end
         end
     end },
-    ["Korblox"] = { type = "Function", action = function(c, e)
+    ["Korblox"] = { category = "Body", type = "Function", action = function(c, e)
         if not (c and c.RightLowerLeg and c.RightUpperLeg and c.RightFoot) then return end
         if e then
             for _, part in ipairs({"RightLowerLeg", "RightUpperLeg", "RightFoot"}) do
@@ -222,12 +272,32 @@ local allActions = {
             c.RightFoot.MeshId, c.RightFoot.Transparency = "rbxassetid://902942089", 1
         else performFullReset(c) end
     end },
-    ["Remove Hair"] = { type = "Function", action = function(c, e)
+    ["Naked"] = { category = "Body", type = "Function", action = function(c, e)
         if not c then return end
         if e then
-            for _, hair in ipairs(removedHairStorage) do
-                if hair and not hair.Parent then hair:Destroy() end
+            local shirt = c:FindFirstChildOfClass("Shirt")
+            if shirt and not originalClothing.Shirt then originalClothing.Shirt = shirt; shirt.Parent = nil end
+            local pants = c:FindFirstChildOfClass("Pants")
+            if pants and not originalClothing.Pants then originalClothing.Pants = pants; pants.Parent = nil end
+            if #originalClothing.TShirts == 0 then
+                for _, item in ipairs(c:GetChildren()) do
+                    if item:IsA("ShirtGraphic") and item ~= scriptedShirtGraphic then
+                        table.insert(originalClothing.TShirts, item)
+                        item.Parent = nil
+                    end
+                end
             end
+        else
+            if originalClothing.Shirt and not originalClothing.Shirt.Parent then originalClothing.Shirt.Parent = c end
+            if originalClothing.Pants and not originalClothing.Pants.Parent then originalClothing.Pants.Parent = c end
+            for _, item in ipairs(originalClothing.TShirts) do if item and not item.Parent then item.Parent = c end end
+            originalClothing.Shirt = nil; originalClothing.Pants = nil; originalClothing.TShirts = {}
+        end
+    end },
+    ["Remove Hair"] = { category = "Hair", type = "Function", action = function(c, e)
+        if not c then return end
+        if e then
+            for _, hair in ipairs(removedHairStorage) do if hair and not hair.Parent then hair:Destroy() end end
             removedHairStorage = {}
             for _, h in ipairs(c:GetChildren()) do
                 if h:IsA("Accessory") and h.AccessoryType == Enum.AccessoryType.Hair then
@@ -236,62 +306,92 @@ local allActions = {
                 end
             end
         else
-            for _, hair in ipairs(removedHairStorage) do
-                if hair and not hair.Parent then hair.Parent = c end
-            end
+            for _, hair in ipairs(removedHairStorage) do if hair and not hair.Parent then hair.Parent = c end end
             removedHairStorage = {}
         end
     end },
-    ["Epic Face"] = { type = "Function", action = function(c, e)
+    ["Epic Face"] = { category = "Faces", type = "Function", action = function(c, e)
         if not c then return end
         local head = c:FindFirstChild("Head")
         if not head then return end
         local faceDecal = head:FindFirstChild("face")
         if not faceDecal then return end
-
-        if e then -- If toggled ON
-            if not originalFaceTexture then
-                originalFaceTexture = faceDecal.Texture
-            end
-            faceDecal.Texture = "rbxassetid://42070872"
-        else -- If toggled OFF
-            if originalFaceTexture then
-                faceDecal.Texture = originalFaceTexture
-                originalFaceTexture = nil
-            end
+        if e then
+            if not originalFaceTexture then originalFaceTexture = faceDecal.Texture end
+            faceDecal.Texture = "http://www.roblox.com/asset/?id=42070872"
+        else
+            if originalFaceTexture then faceDecal.Texture = originalFaceTexture; originalFaceTexture = nil end
         end
     end },
-    ["Valkyrie Helm"] = { type = "Accessory", action = { Head = { 1365767 } } },
-    ["Wings of Duality"] = { type = "Accessory", action = { Torso = { 493489765 } } },
-    ["Dominus Praefectus"] = { type = "Accessory", action = { Head = { 527365852 } } },
-    ["Fiery Horns of the Netherworld"] = { type = "Accessory", action = { Head = { 215718515 } } },
-    ["Blackvalk"] = { type = "Accessory", action = { Head = { 124730194 } } },
-    ["Frozen Horns of the Frigid Planes"] = { type = "Accessory", action = { Head = { 74891470 } } },
-    ["Silver King of the Night"] = { type = "Accessory", action = { Head = { 439945661 } } },
-    ["Poisoned Horns of the Toxic Wasteland"] = { type = "Accessory", action = { Head = { 1744060292 } } },
-    ["Pink Sparkle Time Fedora"] = { type = "Accessory", action = { Head = { 334663683 } } },
-    ["Midnight Blue Sparkle Time Fedora"] = { type = "Accessory", action = { Head = { 119916949 } } },
-    ["Green Sparkle Time Fedora"] = { type = "Accessory", action = { Head = { 100929604 } } },
-    ["Red Sparkle Time Fedora"] = { type = "Accessory", action = { Head = { 72082328 } } },
-    ["Purple Sparkle Time Fedora"] = { type = "Accessory", action = { Head = { 63043890 } } }
-}
-
-local function applyAppearance(char, appearanceData)
-    if not char or type(appearanceData) ~= "table" then return end
-    for name, enabled in pairs(appearanceData) do
-        if enabled and allActions[name] then
-            local a = allActions[name]
-            if a.type == "Accessory" then addAccessory(char, a.action)
-            else pcall(a.action, char, true) end
+    ["Remove Original Shirt"] = { category = "Outfit", type = "Function", action = function(c, e)
+        if not c then return end
+        if e then
+            local shirt = c:FindFirstChildOfClass("Shirt")
+            if shirt and not originalClothing.Shirt then originalClothing.Shirt = shirt; shirt.Parent = nil end
+        else
+            if originalClothing.Shirt and not originalClothing.Shirt.Parent then originalClothing.Shirt.Parent = c end
+            originalClothing.Shirt = nil
         end
-    end
-end
+    end },
+    ["Remove Original T-Shirts"] = { category = "Outfit", type = "Function", action = function(c, e)
+        if not c then return end
+        if e then
+            originalClothing.TShirts = {}
+            for _, item in ipairs(c:GetChildren()) do
+                if item:IsA("ShirtGraphic") and item ~= scriptedShirtGraphic then
+                    table.insert(originalClothing.TShirts, item)
+                    item.Parent = nil
+                end
+            end
+        else
+            for _, item in ipairs(originalClothing.TShirts) do if item and not item.Parent then item.Parent = c end end
+            originalClothing.TShirts = {}
+        end
+    end },
+    ["Remove Original Accessories"] = { category = "Outfit", type = "Function", action = function(c, e)
+        if not c then return end
+        if e then
+            originalClothing.Accessories = {}
+            for _, item in ipairs(c:GetChildren()) do
+                if item:IsA("Accessory") and not item:FindFirstChild("DrRayScriptedAccessory") then
+                    table.insert(originalClothing.Accessories, item)
+                    item.Parent = nil
+                end
+            end
+        else
+            for _, item in ipairs(originalClothing.Accessories) do if item and not item.Parent then item.Parent = c end end
+            originalClothing.Accessories = {}
+        end
+    end },
+    ["Valkyrie Helm"] = { category = "Accessories", type = "Accessory", action = { Head = { 1365767 } } },
+    ["Wings of Duality"] = { category = "Accessories", type = "Accessory", action = { Torso = { 493489765 } } },
+    ["Dominus Praefectus"] = { category = "Accessories", type = "Accessory", action = { Head = { 527365852 } } },
+    ["Fiery Horns of the Netherworld"] = { category = "Accessories", type = "Accessory", action = { Head = { 215718515 } } },
+    ["Blackvalk"] = { category = "Accessories", type = "Accessory", action = { Head = { 124730194 } } },
+    ["Frozen Horns of the Frigid Planes"] = { category = "Accessories", type = "Accessory", action = { Head = { 74891470 } } },
+    ["Silver King of the Night"] = { category = "Accessories", type = "Accessory", action = { Head = { 439945661 } } },
+    ["Poisoned Horns of the Toxic Wasteland"] = { category = "Accessories", type = "Accessory", action = { Head = { 1744060292 } } },
+    ["Pink Sparkle Time Fedora"] = { category = "Accessories", type = "Accessory", action = { Head = { 334663683 } } },
+    ["Midnight Blue Sparkle Time Fedora"] = { category = "Accessories", type = "Accessory", action = { Head = { 119916949 } } },
+    ["Green Sparkle Time Fedora"] = { category = "Accessories", type = "Accessory", action = { Head = { 100929604 } } },
+    ["Red Sparkle Time Fedora"] = { category = "Accessories", type = "Accessory", action = { Head = { 72082328 } } },
+    ["Purple Sparkle Time Fedora"] = { category = "Accessories", type = "Accessory", action = { Head = { 63043890 } } }
+}
 
 local function syncCharacterState(char)
     if not char then return end
     performFullReset(char)
-    applyAppearance(char, autoEquipSelection)
-    applyAnimationPack(char, selectedAnimationPack)
+    
+    for name, action in pairs(allActions) do
+        if Library.Toggles[name] and Library.Toggles[name].Value then
+            if action.type == "Accessory" then addAccessory(char, action.action)
+            else pcall(action.action, char, true) end
+        end
+    end
+    
+    applySkinColor(char, Library.Options.SkinColorPicker.Value)
+    applyTShirt(char, Library.Options.TShirtSelector.Value)
+    applyAnimationPack(char, Library.Options.AnimationPackSelector.Value)
 end
 
 characterAddedConnection = Player.CharacterAdded:Connect(function(c)
@@ -299,45 +399,15 @@ characterAddedConnection = Player.CharacterAdded:Connect(function(c)
     originalAnimations = {}
     originalLimbData, removedHairStorage = {}, {}
     originalFaceTexture = nil
+    scriptedShirtGraphic = nil
+    originalPartColors = {}
+    originalClothing = { Shirt = nil, Pants = nil, TShirts = {}, Accessories = {} }
     task.wait(0.2)
     syncCharacterState(c)
 end)
 
-local function updateTogglesFromState()
-    for name, _ in pairs(allActions) do
-        local toggle = Library.Toggles[name]
-        if toggle then
-            toggle:SetValue(autoEquipSelection[name] or false)
-        end
-    end
-end
-
-local function saveProfilesToFile()
-    local ok, encoded = pcall(function() return HttpService:JSONEncode(savedProfiles) end)
-    if ok and encoded and writefile then writefile(profilesFileName, encoded) end
-end
-
-local function loadProfilesFromFile()
-    if isfile and isfile(profilesFileName) then
-        local f = readfile(profilesFileName)
-        if f and f ~= "" then
-            local ok, data = pcall(function() return HttpService:JSONDecode(f) end)
-            if ok and data then savedProfiles = data end
-        end
-    end
-end
-
-local function getDropdownOptions()
-    local opts = { "None" }
-    local keys = getTableKeys(savedProfiles)
-    table.sort(keys)
-    for _, k in ipairs(keys) do table.insert(opts, k) end
-    return opts
-end
-
 -- Create Tabs
 local appearanceTab = Window:AddTab("Appearance", "shirt")
-local profilesTab = Window:AddTab("Profiles", "save")
 local usefulTab = Window:AddTab("Useful", "wrench")
 local uiSettingsTab = Window:AddTab("UI Settings", "settings")
 
@@ -351,153 +421,56 @@ local function makeTabFullWidth(tab)
     end
 end
 
--- Apply this fix to all created tabs
+-- Apply full-width layout to tabs that need it
 makeTabFullWidth(appearanceTab)
-makeTabFullWidth(profilesTab)
 makeTabFullWidth(usefulTab)
 
--- Populate Appearance Tab
-local appearanceGroup = appearanceTab:AddLeftGroupbox("Items")
-for name, _ in pairs(allActions) do
-    appearanceGroup:AddToggle(name, {
-        Text = name,
-        Default = autoEquipSelection[name] or false,
-        Callback = function(value)
-            autoEquipSelection[name] = value
-            syncCharacterState(Player.Character)
-        end
-    })
+-- Populate Appearance Tab with organized sections
+local groupboxes = {
+    Accessories = appearanceTab:AddLeftGroupbox("Accessories"),
+    Body = appearanceTab:AddLeftGroupbox("Body Modifications"),
+    Faces = appearanceTab:AddLeftGroupbox("Faces"),
+    Hair = appearanceTab:AddLeftGroupbox("Hair"),
+    Clothing = appearanceTab:AddLeftGroupbox("Clothing"),
+    Outfit = appearanceTab:AddLeftGroupbox("Outfit Management"),
+    Animation = appearanceTab:AddLeftGroupbox("Animation"),
+}
+
+for name, data in pairs(allActions) do
+    local targetGroup = groupboxes[data.category]
+    if targetGroup then
+        targetGroup:AddToggle(name, {
+            Text = name,
+            Default = false,
+            Callback = function(value)
+                syncCharacterState(Player.Character)
+            end
+        })
+    end
 end
 
-local animationGroup = appearanceTab:AddLeftGroupbox("Animation")
-animationGroup:AddDropdown("AnimationPackSelector", {
+groupboxes.Body:AddLabel("Skin Color"):AddColorPicker("SkinColorPicker", {
+    Default = Player.Character and Player.Character:FindFirstChild("Head") and Player.Character.Head.Color or Color3.new(1,1,1),
+    Callback = function(color)
+        applySkinColor(Player.Character, color)
+    end
+})
+
+groupboxes.Clothing:AddDropdown("TShirtSelector", {
+    Values = getTableKeys(clothingItems.TShirt),
+    Default = "None",
+    Text = "T-Shirt",
+    Callback = function(shirtName)
+        applyTShirt(Player.Character, shirtName)
+    end
+})
+
+groupboxes.Animation:AddDropdown("AnimationPackSelector", {
     Values = getTableKeys(animationPacks),
-    Default = selectedAnimationPack,
+    Default = "None",
     Text = "Animation Pack",
     Callback = function(pack)
-        selectedAnimationPack = pack
-        applyAnimationPack(Player.Character, selectedAnimationPack)
-    end
-})
-
--- Populate Profiles Tab
-local profilesGroup = profilesTab:AddLeftGroupbox("Management")
-profilesGroup:AddLabel("AutoLoadStatusLabel", { Text = "Auto Load: None" })
-
-profilesGroup:AddDropdown("ProfileSelector", {
-    Values = getDropdownOptions(),
-    Default = "None",
-    Text = "Select Profile",
-    Callback = function(selection)
-        if not selection then return end
-        selectedProfileName = (selection ~= "None") and selection or nil
-    end
-})
-
-profilesGroup:AddButton("ApplyProfileButton", {
-    Text = "Apply Selected Profile",
-    DoubleClick = false,
-    Func = function()
-        if selectedProfileName and savedProfiles[selectedProfileName] then
-            performFullReset(Player.Character)
-            
-            local profileData = savedProfiles[selectedProfileName]
-            autoEquipSelection = copyTable(profileData)
-            selectedAnimationPack = profileData._AnimationPack or "None"
-            autoEquipSelection._AnimationPack = nil
-            
-            updateTogglesFromState()
-            Library.Options.AnimationPackSelector:SetValue(selectedAnimationPack)
-            
-            applyAppearance(Player.Character, autoEquipSelection)
-            applyAnimationPack(Player.Character, selectedAnimationPack)
-            
-            Obsidian:Notify({ Title = "Profile Applied", Description = "'" .. selectedProfileName .. "' has been applied." })
-        else
-            Obsidian:Notify({ Title = "Error", Description = "No profile is selected to apply." })
-        end
-    end
-})
-
-profilesGroup:AddInput("ProfileNameInput", {
-    Text = "Profile Name",
-    Placeholder = "Enter name here...",
-    Callback = function(text) profileNameInput = text end
-})
-
-profilesGroup:AddButton("SaveProfileButton", {
-    Text = "Save Current Profile",
-    DoubleClick = false,
-    Func = function()
-        if profileNameInput and profileNameInput ~= "" then
-            local profileToSave = copyTable(autoEquipSelection)
-            profileToSave._AnimationPack = selectedAnimationPack
-            savedProfiles[profileNameInput] = profileToSave
-            
-            saveProfilesToFile()
-            Library.Options.ProfileSelector:SetValues(getDropdownOptions())
-            Library.Options.ProfileSelector:SetValue(profileNameInput)
-            selectedProfileName = profileNameInput
-            Obsidian:Notify({ Title = "Profile Saved", Description = "'" .. profileNameInput .. "' has been saved." })
-        else
-            Obsidian:Notify({ Title = "Error", Description = "Please enter a profile name first." })
-        end
-    end
-})
-
-profilesGroup:AddButton("RenameProfileButton", {
-    Text = "Rename Selected",
-    DoubleClick = false,
-    Func = function()
-        local newName = profileNameInput
-        if selectedProfileName and newName and newName ~= "" and not savedProfiles[newName] then
-            savedProfiles[newName] = savedProfiles[selectedProfileName]
-            savedProfiles[selectedProfileName] = nil
-            if isfile and isfile(autoLoadFileName) and readfile(autoLoadFileName) == selectedProfileName then
-                writefile(autoLoadFileName, newName)
-                Library.Labels.AutoLoadStatusLabel:SetText("Auto Load: " .. newName)
-            end
-            selectedProfileName = newName
-            saveProfilesToFile()
-            Library.Options.ProfileSelector:SetValues(getDropdownOptions())
-            Library.Options.ProfileSelector:SetValue(newName)
-        end
-    end
-})
-
-profilesGroup:AddButton("DeleteProfileButton", {
-    Text = "Delete Selected",
-    DoubleClick = false,
-    Func = function()
-        if selectedProfileName then
-            savedProfiles[selectedProfileName] = nil
-            selectedProfileName = nil
-            saveProfilesToFile()
-            Library.Options.ProfileSelector:SetValues(getDropdownOptions())
-            Library.Options.ProfileSelector:SetValue("None")
-        end
-    end
-})
-
-profilesGroup:AddButton("SetAutoLoadButton", {
-    Text = "Set Auto Load",
-    DoubleClick = false,
-    Func = function()
-        if selectedProfileName and writefile then
-            writefile(autoLoadFileName, tostring(selectedProfileName))
-            Library.Labels.AutoLoadStatusLabel:SetText("Auto Load: " .. selectedProfileName)
-        end
-    end
-})
-
-profilesGroup:AddButton("ClearAutoLoadButton", {
-    Text = "Clear Auto Load",
-    DoubleClick = false,
-    Func = function()
-        if writefile then
-            writefile(autoLoadFileName, "")
-            Library.Labels.AutoLoadStatusLabel:SetText("Auto Load: None")
-        end
+        applyAnimationPack(Player.Character, pack)
     end
 })
 
@@ -515,10 +488,13 @@ usefulGroup:AddButton("ResetAllButton", {
     Text = "Reset All",
     DoubleClick = false,
     Func = function()
-        autoEquipSelection = {}
-        selectedAnimationPack = "None"
         performFullReset(Player.Character)
-        updateTogglesFromState()
+        for name, _ in pairs(allActions) do
+            if Library.Toggles[name] then
+                Library.Toggles[name]:SetValue(false)
+            end
+        end
+        Library.Options.TShirtSelector:SetValue("None")
         Library.Options.AnimationPackSelector:SetValue("None")
     end
 })
@@ -538,39 +514,31 @@ usefulGroup:AddButton("UnloadButton", {
     end
 })
 
--- Setup Addons
-ThemeManager:SetLibrary(Obsidian)
-SaveManager:SetLibrary(Obsidian)
+-- Setup Addons if they loaded correctly
+if ThemeManager and SaveManager then
+    ThemeManager:SetLibrary(Obsidian)
+    SaveManager:SetLibrary(Obsidian)
 
-SaveManager:IgnoreThemeSettings()
-SaveManager:SetIgnoreIndexes({ "ToggleUIKeybind" })
+    SaveManager:IgnoreThemeSettings()
+    SaveManager:SetIgnoreIndexes({ "ToggleUIKeybind" })
 
-ThemeManager:SetFolder("Paradise")
-SaveManager:SetFolder("Paradise")
-
-ThemeManager:ApplyToTab(uiSettingsTab)
-SaveManager:BuildConfigSection(uiSettingsTab)
-
--- Initial load sequence
-loadProfilesFromFile()
-Library.Options.ProfileSelector:SetValues(getDropdownOptions())
-
-if isfile and isfile(autoLoadFileName) then
-    local autoProfileName = readfile(autoLoadFileName)
-    if autoProfileName and autoProfileName ~= "" and savedProfiles[autoProfileName] then
-        local profileData = savedProfiles[autoProfileName]
-        autoEquipSelection = copyTable(profileData)
-        selectedAnimationPack = profileData._AnimationPack or "None"
-        autoEquipSelection._AnimationPack = nil
-
-        selectedProfileName = autoProfileName
-        Library.Labels.AutoLoadStatusLabel:SetText("Auto Load: " .. autoProfileName)
-        Library.Options.ProfileSelector:SetValue(autoProfileName)
-        Library.Options.AnimationPackSelector:SetValue(selectedAnimationPack)
-        
-        updateTogglesFromState()
-        syncCharacterState(Player.Character)
+    ThemeManager:SetFolder("Paradise")
+    SaveManager:SetFolder("Paradise")
+    
+    ThemeManager:ApplyToTab(uiSettingsTab)
+    SaveManager:BuildConfigSection(uiSettingsTab)
+    
+    local oldLoadFunc = SaveManager.Load
+    function SaveManager:Load(...)
+        local success, err = oldLoadFunc(self, ...)
+        if success then
+            task.wait(0.2)
+            syncCharacterState(Player.Character)
+        end
+        return success, err
     end
+    
+    SaveManager:LoadAutoloadConfig()
+else
+    warn("Paradise Manager: ThemeManager or SaveManager failed to load. The UI Settings tab will be disabled.")
 end
-
-SaveManager:LoadAutoloadConfig()
