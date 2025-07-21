@@ -9,6 +9,7 @@ getgenv().ChatBypassLoaded = true
 local Players = game:GetService("Players")
 local TextChatService = game:GetService("TextChatService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local StarterGui = game:GetService("StarterGui")
 
 -- Player
 local player = Players.LocalPlayer
@@ -22,13 +23,12 @@ screenGui.Parent = player:WaitForChild("PlayerGui")
 -- Main Frame
 local frame = Instance.new("Frame")
 frame.Name = "MainFrame"
-frame.Size = UDim2.new(0, 300, 0, 120)
-frame.Position = UDim2.new(0.5, -150, 0.7, -60)
+frame.Size = UDim2.new(0, 300, 0, 140)
+frame.Position = UDim2.new(0.5, -150, 0.7, -70)
 frame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
 frame.BorderSizePixel = 0
 frame.Parent = screenGui
 
--- UI Corner
 local uiCorner = Instance.new("UICorner")
 uiCorner.CornerRadius = UDim.new(0, 8)
 uiCorner.Parent = frame
@@ -55,6 +55,18 @@ sendButton.TextColor3 = Color3.fromRGB(255, 255, 255)
 sendButton.BorderSizePixel = 0
 sendButton.Parent = frame
 
+-- Feedback Label
+local feedback = Instance.new("TextLabel")
+feedback.Name = "Feedback"
+feedback.Size = UDim2.new(1, -20, 0, 20)
+feedback.Position = UDim2.new(0, 10, 0, 100)
+feedback.BackgroundTransparency = 1
+feedback.TextColor3 = Color3.fromRGB(150, 150, 150)
+feedback.Text = ""
+feedback.Font = Enum.Font.SourceSans
+feedback.TextSize = 14
+feedback.Parent = frame
+
 -- Helper: bypass text
 local function bypassText(text)
     local result = {}
@@ -67,14 +79,30 @@ end
 -- Send action
 sendButton.MouseButton1Click:Connect(function()
     local msg = textBox.Text or ""
-    if msg == "" then return end
-    local bypassed = bypassText(msg)
-    local remote = TextChatService:FindFirstChild("TextChatCommands", true)
-        and TextChatService.TextChatCommands:FindFirstChild("SayMessageRequest")
-        or ReplicatedStorage:FindFirstChild("DefaultChatSystemChatEvents")
-            and ReplicatedStorage.DefaultChatSystemChatEvents:FindFirstChild("SayMessageRequest")
-    if remote then
-        remote:FireServer(bypassed, "All")
+    if msg == "" then
+        feedback.Text = "Please enter a message."
+        return
     end
+    local bypassed = bypassText(msg)
+    -- Attempt legacy remote
+    local legacyContainer = ReplicatedStorage:FindFirstChild("DefaultChatSystemChatEvents")
+    local legacyRemote = legacyContainer and legacyContainer:FindFirstChild("SayMessageRequest")
+    -- Attempt modern TextChatService remote
+    local modernCmd = TextChatService:FindFirstChild("TextChatCommands", true)
+    local modernRemote = modernCmd and modernCmd:FindFirstChild("SayMessageRequest")
+
+    if modernRemote then
+        modernRemote:FireServer(bypassed, "All")
+        feedback.Text = "Sent via TextChatService"
+    elseif legacyRemote then
+        legacyRemote:FireServer(bypassed, "All")
+        feedback.Text = "Sent via Legacy Chat"
+    else
+        -- Fallback: local display
+        StarterGui:SetCore("ChatMakeSystemMessage", {Text = bypassed; Color = Color3.fromRGB(255,255,255)})
+        feedback.Text = "No chat remote found; shown locally"
+    end
+    -- Clear
     textBox.Text = ""
+    task.delay(2, function() feedback.Text = "" end)
 end)
