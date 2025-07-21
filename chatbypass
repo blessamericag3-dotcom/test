@@ -1,0 +1,80 @@
+--[[
+    Simple Chat Bypasser – Native Roblox GUI
+]]
+
+if getgenv().ChatBypassLoaded then return end
+getgenv().ChatBypassLoaded = true
+
+-- Services
+local Players = game:GetService("Players")
+local TextChatService = game:GetService("TextChatService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+-- Player
+local player = Players.LocalPlayer
+
+-- Create ScreenGui
+local screenGui = Instance.new("ScreenGui")
+screenGui.Name = "ChatBypassGui"
+screenGui.ResetOnSpawn = false
+screenGui.Parent = player:WaitForChild("PlayerGui")
+
+-- Main Frame
+local frame = Instance.new("Frame")
+frame.Name = "MainFrame"
+frame.Size = UDim2.new(0, 300, 0, 120)
+frame.Position = UDim2.new(0.5, -150, 0.7, -60)
+frame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+frame.BorderSizePixel = 0
+frame.Parent = screenGui
+
+-- UI Corner
+local uiCorner = Instance.new("UICorner")
+uiCorner.CornerRadius = UDim.new(0, 8)
+uiCorner.Parent = frame
+
+-- TextBox for input
+local textBox = Instance.new("TextBox")
+textBox.Name = "MessageBox"
+textBox.Size = UDim2.new(1, -20, 0, 40)
+textBox.Position = UDim2.new(0, 10, 0, 10)
+textBox.PlaceholderText = "Enter message..."
+textBox.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+textBox.TextColor3 = Color3.fromRGB(255, 255, 255)
+textBox.ClearTextOnFocus = false
+textBox.Parent = frame
+
+-- Send Button
+local sendButton = Instance.new("TextButton")
+sendButton.Name = "SendButton"
+sendButton.Size = UDim2.new(1, -20, 0, 30)
+sendButton.Position = UDim2.new(0, 10, 0, 60)
+sendButton.Text = "Send Bypassed"
+sendButton.BackgroundColor3 = Color3.fromRGB(70, 70, 70)
+sendButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+sendButton.BorderSizePixel = 0
+sendButton.Parent = frame
+
+-- Helper: bypass text
+local function bypassText(text)
+    local result = {}
+    for char in text:gmatch('.') do
+        table.insert(result, char .. '<font size="0"> </font>')
+    end
+    return table.concat(result)
+end
+
+-- Send action
+sendButton.MouseButton1Click:Connect(function()
+    local msg = textBox.Text or ""
+    if msg == "" then return end
+    local bypassed = bypassText(msg)
+    local remote = TextChatService:FindFirstChild("TextChatCommands", true)
+        and TextChatService.TextChatCommands:FindFirstChild("SayMessageRequest")
+        or ReplicatedStorage:FindFirstChild("DefaultChatSystemChatEvents")
+            and ReplicatedStorage.DefaultChatSystemChatEvents:FindFirstChild("SayMessageRequest")
+    if remote then
+        remote:FireServer(bypassed, "All")
+    end
+    textBox.Text = ""
+end)
