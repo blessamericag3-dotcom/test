@@ -1,7 +1,6 @@
 --[[
     Paradise Appearance Manager - Rewritten for the modern Obsidian Library
-    - Added exclusive animation pack support with profile saving.
-    - FIX 9: Correctly chained AddKeyPicker to a Label instead of calling it on a Groupbox.
+    - Added Animation Pack support with a dropdown and profile integration.
     - FIX 8: Correctly saves a COPY of the appearance table instead of a reference.
     - FIX 7: Corrected notification calls to use 'Description' instead of 'Content'.
     - FIX 6: Dropdown now only selects a profile; it no longer auto-applies it.
@@ -33,16 +32,38 @@ local SCRIPT_ACCESSORY_TAG = "DrRayScriptedAccessory"
 local profilesFileName = "Profiles.json"
 local autoLoadFileName = "AutoLoadProfile.txt"
 
-local originalLimbData, removedHairStorage, autoEquipSelection, originalAnimateScript = {}, {}, {}, nil
+local originalLimbData, removedHairStorage, autoEquipSelection = {}, {}, {}
 local characterAddedConnection = nil
 local savedProfiles, selectedProfileName = {}, nil
 local profileNameInput = ""
+
+-- NEW: Animation data and state variables
+local originalAnimations = {}
+local selectedAnimationPack = "None"
+local animationPacks = {
+    ["None"] = {}, -- This will be populated with the character's original animations
+    ["Vampire"] = {
+        idle = { "rbxassetid://1083445855", "rbxassetid://1083450166" },
+        walk = "rbxassetid://1083473930",
+        run = "rbxassetid://1083462077",
+        jump = "rbxassetid://1083455352",
+        fall = "rbxassetid://1083443587",
+        climb = "rbxassetid://1083439238",
+        swim = "rbxassetid://1083222527",
+        swimidle = "rbxassetid://1083225406"
+    }
+    -- You can add more animation packs here in the same format
+}
 
 -- HELPER: Creates a true copy of a table, not a reference.
 local function copyTable(original)
     local newTable = {}
     for key, value in pairs(original) do
-        newTable[key] = value
+        if type(value) == "table" then
+            newTable[key] = copyTable(value)
+        else
+            newTable[key] = value
+        end
     end
     return newTable
 end
@@ -106,8 +127,56 @@ local function addAccessory(char, accessoryData)
     end
 end
 
+-- NEW: Animation handling functions
+local function captureOriginalAnimations(animateScript)
+    if not animateScript or next(originalAnimations) then return end
+    
+    local anims = {
+        idle = { animateScript.idle.Animation1.AnimationId, animateScript.idle.Animation2.AnimationId },
+        walk = animateScript.walk.WalkAnim.AnimationId,
+        run = animateScript.run.RunAnim.AnimationId,
+        jump = animateScript.jump.JumpAnim.AnimationId,
+        fall = animateScript.fall.FallAnim.AnimationId,
+        climb = animateScript.climb.ClimbAnim.AnimationId,
+        swim = animateScript.swim.Swim.AnimationId,
+        swimidle = animateScript.swimidle.SwimIdle.AnimationId
+    }
+    originalAnimations = anims
+    animationPacks["None"] = anims -- Set the "None" pack to the captured originals
+end
+
+local function applyAnimationPack(char, packName)
+    coroutine.wrap(function()
+        if not char then return end
+        local animate = char:WaitForChild("Animate", 5)
+        if not animate then return end
+        
+        local success = pcall(function()
+            captureOriginalAnimations(animate) -- Capture originals if we haven't already
+        end)
+        if not success then return end
+
+        local pack = animationPacks[packName]
+        if not pack then return end
+        
+        -- Use a small delay to ensure animations apply correctly
+        task.wait(0.1)
+
+        animate.idle.Animation1.AnimationId = pack.idle and pack.idle[1] or originalAnimations.idle[1]
+        animate.idle.Animation2.AnimationId = pack.idle and pack.idle[2] or originalAnimations.idle[2]
+        animate.walk.WalkAnim.AnimationId = pack.walk or originalAnimations.walk
+        animate.run.RunAnim.AnimationId = pack.run or originalAnimations.run
+        animate.jump.JumpAnim.AnimationId = pack.jump or originalAnimations.jump
+        animate.fall.FallAnim.AnimationId = pack.fall or originalAnimations.fall
+        animate.climb.ClimbAnim.AnimationId = pack.climb or originalAnimations.climb
+        animate.swim.Swim.AnimationId = pack.swim or originalAnimations.swim
+        animate.swimidle.SwimIdle.AnimationId = pack.swimidle or originalAnimations.swimidle
+    end)()
+end
+
 local function performFullReset(chr)
     clearOldAccessories(chr)
+    applyAnimationPack(chr, "None") -- Reset animations
     if chr and chr:FindFirstChild("Head") then
         chr.Head.Transparency = 0
         for _, d in ipairs(chr.Head:GetChildren()) do
@@ -124,94 +193,15 @@ local function performFullReset(chr)
         if hair and not hair.Parent and chr then hair.Parent = chr end
     end
     removedHairStorage = {}
-    
-    -- Restore original animation script if it exists
-    if originalAnimateScript and chr then
-        local currentAnimate = chr:FindFirstChild("Animate")
-        if currentAnimate then currentAnimate:Destroy() end
-        local restoredAnimate = originalAnimateScript:Clone()
-        restoredAnimate.Parent = chr
-        restoredAnimate.Disabled = false
-        originalAnimateScript = nil
-    end
 end
-
-local allActions = {
-    ["Headless"] = { type = "Function", action = function(c, e)
-        if c and c:FindFirstChild("Head") then
-            c.Head.Transparency = e and 1 or 0
-            for _, v in ipairs(c.Head:GetChildren()) do
-                if v:IsA("Decal") then v.Transparency = e and 1 or 0 end
-            end
-        end
-    end },
-    ["Korblox"] = { type = "Function", action = function(c, e)
-        if not (c and c.RightLowerLeg and c.RightUpperLeg and c.RightFoot) then return end
-        if e then
-            for _, part in ipairs({"RightLowerLeg", "RightUpperLeg", "RightFoot"}) do
-                local p = c:FindFirstChild(part)
-                if p and not originalLimbData[part] then
-                    originalLimbData[part] = { MeshId = p.MeshId, Transparency = p.Transparency, TextureID = p.TextureID }
-                end
-            end
-            c.RightLowerLeg.MeshId, c.RightLowerLeg.Transparency = "rbxassetid://902942093", 1
-            c.RightUpperLeg.MeshId, c.RightUpperLeg.TextureID = "rbxassetid://902942096", "rbxassetid://902843398"
-            c.RightFoot.MeshId, c.RightFoot.Transparency = "rbxassetid://902942089", 1
-        else performFullReset(c) end
-    end },
-    ["Remove Hair"] = { type = "Function", action = function(c, e)
-        if not c then return end
-        if e then
-            for _, hair in ipairs(removedHairStorage) do
-                if hair and not hair.Parent then hair:Destroy() end
-            end
-            removedHairStorage = {}
-            for _, h in ipairs(c:GetChildren()) do
-                if h:IsA("Accessory") and h.AccessoryType == Enum.AccessoryType.Hair then
-                    table.insert(removedHairStorage, h)
-                    h.Parent = nil
-                end
-            end
-        else
-            for _, hair in ipairs(removedHairStorage) do
-                if hair and not hair.Parent then hair.Parent = c end
-            end
-            removedHairStorage = {}
-        end
-    end },
-    ["Valkyrie Helm"] = { type = "Accessory", action = { Head = { 1365767 } } },
-    ["Wings of Duality"] = { type = "Accessory", action = { Torso = { 493489765 } } },
-    ["Dominus Praefectus"] = { type = "Accessory", action = { Head = { 527365852 } } },
-    ["Fiery Horns of the Netherworld"] = { type = "Accessory", action = { Head = { 215718515 } } },
-    ["Blackvalk"] = { type = "Accessory", action = { Head = { 124730194 } } },
-    ["Frozen Horns of the Frigid Planes"] = { type = "Accessory", action = { Head = { 74891470 } } },
-    ["Silver King of the Night"] = { type = "Accessory", action = { Head = { 439945661 } } },
-    ["Poisoned Horns of the Toxic Wasteland"] = { type = "Accessory", action = { Head = { 1744060292 } } },
-    ["Pink Sparkle Time Fedora"] = { type = "Accessory", action = { Head = { 334663683 } } },
-    ["Midnight Blue Sparkle Time Fedora"] = { type = "Accessory", action = { Head = { 119916949 } } },
-    ["Green Sparkle Time Fedora"] = { type = "Accessory", action = { Head = { 100929604 } } },
-    ["Red Sparkle Time Fedora"] = { type = "Accessory", action = { Head = { 72082328 } } },
-    ["Purple Sparkle Time Fedora"] = { type = "Accessory", action = { Head = { 63043890 } } }
-}
-
-local animationPacks = {
-    ["Old School Animations"] = { type = "Animation", id = 1211149448 },
-    ["Ninja Animations"] = { type = "Animation", id = 1211152809 },
-    ["Levitation Animations"] = { type = "Animation", id = 1211151628 }
-}
 
 local function applyAppearance(char, appearanceData)
     if not char then return end
     for name, enabled in pairs(appearanceData) do
-        if enabled then
-            local actionInfo = allActions[name] or animationPacks[name]
-            if actionInfo then
-                if actionInfo.type == "Accessory" then addAccessory(char, actionInfo.action)
-                elseif actionInfo.type == "Function" then pcall(actionInfo.action, char, true)
-                elseif actionInfo.type == "Animation" then
-                    -- Animation logic is handled by its toggle callback
-                end
-            end
+        if enabled and allActions[name] then
+            local a = allActions[name]
+            if a.type == "Accessory" then addAccessory(char, a.action)
+            else pcall(a.action, char, true) end
         end
     end
 end
@@ -220,11 +210,12 @@ local function syncCharacterState(char)
     if not char then return end
     performFullReset(char)
     applyAppearance(char, autoEquipSelection)
+    applyAnimationPack(char, selectedAnimationPack)
 end
 
 characterAddedConnection = Player.CharacterAdded:Connect(function(c)
     c:WaitForChild("Humanoid")
-    originalAnimateScript = nil
+    originalAnimations = {}
     originalLimbData, removedHairStorage = {}, {}
     task.wait(0.2)
     syncCharacterState(c)
@@ -233,11 +224,9 @@ end)
 local function updateTogglesFromState()
     for name, _ in pairs(allActions) do
         local toggle = Library.Toggles[name]
-        if toggle then toggle:SetValue(autoEquipSelection[name] or false) end
-    end
-    for name, _ in pairs(animationPacks) do
-        local toggle = Library.Toggles[name]
-        if toggle then toggle:SetValue(autoEquipSelection[name] or false) end
+        if toggle then
+            toggle:SetValue(autoEquipSelection[name] or false)
+        end
     end
 end
 
@@ -292,56 +281,21 @@ for name, _ in pairs(allActions) do
         Default = autoEquipSelection[name] or false,
         Callback = function(value)
             autoEquipSelection[name] = value
-            allActions[name].action(Player.Character, value)
+            syncCharacterState(Player.Character)
         end
     })
 end
 
--- Add Animation Packs
-local animationGroup = appearanceTab:AddLeftGroupbox("Animation Packs")
-for name, info in pairs(animationPacks) do
-    animationGroup:AddToggle(name, {
-        Text = name,
-        Default = autoEquipSelection[name] or false,
-        Callback = function(value)
-            autoEquipSelection[name] = value
-            local char = Player.Character
-            if not char then return end
-
-            if value then -- Turning ON
-                -- Turn off all other animation packs
-                for otherName, _ in pairs(animationPacks) do
-                    if otherName ~= name and autoEquipSelection[otherName] then
-                        autoEquipSelection[otherName] = false
-                        Library.Toggles[otherName]:SetValue(false)
-                    end
-                end
-
-                local existingAnimate = char:FindFirstChild("Animate")
-                if existingAnimate then
-                    if not originalAnimateScript then
-                        originalAnimateScript = existingAnimate:Clone()
-                    end
-                    existingAnimate:Destroy()
-                end
-
-                local ok, newAnimate = pcall(function() return game:GetObjects("rbxassetid://" .. info.id)[1] end)
-                if ok and newAnimate then
-                    newAnimate.Parent = char
-                    newAnimate.Disabled = false
-                end
-            else -- Turning OFF
-                if originalAnimateScript then
-                    local currentAnimate = char:FindFirstChild("Animate")
-                    if currentAnimate then currentAnimate:Destroy() end
-                    local restoredAnimate = originalAnimateScript:Clone()
-                    restoredAnimate.Parent = char
-                    restoredAnimate.Disabled = false
-                end
-            end
-        end
-    })
-end
+local animationGroup = appearanceTab:AddLeftGroupbox("Animation")
+animationGroup:AddDropdown("AnimationPackSelector", {
+    Values = getTableKeys(animationPacks),
+    Default = selectedAnimationPack,
+    Text = "Animation Pack",
+    Callback = function(pack)
+        selectedAnimationPack = pack
+        applyAnimationPack(Player.Character, selectedAnimationPack)
+    end
+})
 
 -- Populate Profiles Tab
 local profilesGroup = profilesTab:AddLeftGroupbox("Management")
@@ -363,9 +317,18 @@ profilesGroup:AddButton("ApplyProfileButton", {
     Func = function()
         if selectedProfileName and savedProfiles[selectedProfileName] then
             performFullReset(Player.Character)
-            autoEquipSelection = copyTable(savedProfiles[selectedProfileName])
+            
+            local profileData = savedProfiles[selectedProfileName]
+            autoEquipSelection = copyTable(profileData)
+            selectedAnimationPack = profileData._AnimationPack or "None"
+            autoEquipSelection._AnimationPack = nil -- Remove it from the main table
+            
             updateTogglesFromState()
-            syncCharacterState(Player.Character) -- Use sync to apply everything
+            Library.Options.AnimationPackSelector:SetValue(selectedAnimationPack)
+            
+            applyAppearance(Player.Character, autoEquipSelection)
+            applyAnimationPack(Player.Character, selectedAnimationPack)
+            
             Obsidian:Notify({ Title = "Profile Applied", Description = "'" .. selectedProfileName .. "' has been applied." })
         else
             Obsidian:Notify({ Title = "Error", Description = "No profile is selected to apply." })
@@ -384,7 +347,10 @@ profilesGroup:AddButton("SaveProfileButton", {
     DoubleClick = false,
     Func = function()
         if profileNameInput and profileNameInput ~= "" then
-            savedProfiles[profileNameInput] = copyTable(autoEquipSelection)
+            local profileToSave = copyTable(autoEquipSelection)
+            profileToSave._AnimationPack = selectedAnimationPack
+            savedProfiles[profileNameInput] = profileToSave
+            
             saveProfilesToFile()
             Library.Options.ProfileSelector:SetValues(getDropdownOptions())
             Library.Options.ProfileSelector:SetValue(profileNameInput)
@@ -467,8 +433,10 @@ usefulGroup:AddButton("ResetAllButton", {
     DoubleClick = false,
     Func = function()
         autoEquipSelection = {}
+        selectedAnimationPack = "None"
         performFullReset(Player.Character)
         updateTogglesFromState()
+        Library.Options.AnimationPackSelector:SetValue("None")
     end
 })
 
@@ -494,10 +462,16 @@ Library.Options.ProfileSelector:SetValues(getDropdownOptions())
 if isfile and isfile(autoLoadFileName) then
     local autoProfileName = readfile(autoLoadFileName)
     if autoProfileName and autoProfileName ~= "" and savedProfiles[autoProfileName] then
-        autoEquipSelection = copyTable(savedProfiles[autoProfileName])
+        local profileData = savedProfiles[autoProfileName]
+        autoEquipSelection = copyTable(profileData)
+        selectedAnimationPack = profileData._AnimationPack or "None"
+        autoEquipSelection._AnimationPack = nil
+
         selectedProfileName = autoProfileName
         Library.Labels.AutoLoadStatusLabel:SetText("Auto Load: " .. autoProfileName)
         Library.Options.ProfileSelector:SetValue(autoProfileName)
+        Library.Options.AnimationPackSelector:SetValue(selectedAnimationPack)
+        
         updateTogglesFromState()
         syncCharacterState(Player.Character)
     end
