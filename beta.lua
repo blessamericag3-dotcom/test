@@ -1,9 +1,8 @@
 --[[
     Paradise Appearance Manager - Final Version
-    - Added a button to play the "Happier Jump" emote.
+    - Converted the "Happier Jump" emote from a button to a looping toggle.
     - FIX 21: Re-engineered the save/load system to correctly handle morphed characters.
     - FIX 20: Corrected the morph function to properly handle BrickColor conversion and accessory parenting.
-    - FIX 19: Re-implemented robust face-handling in the morph function.
 ]]
 
 if getgenv().ParadiseLoaded then return end
@@ -41,6 +40,7 @@ local currentMorphUserId = nil
 
 -- Animation and clothing definitions
 local originalAnimations = {}
+local happierJumpAnimTrack = nil
 local animationPacks = {
     ["None"] = {},
     ["Vampire"] = {
@@ -169,6 +169,7 @@ local function applyLimbColor(char, limbName, color)
 end
 
 local function performFullReset(chr)
+    if happierJumpAnimTrack then happierJumpAnimTrack:Stop() end
     clearOldAccessories(chr); applyAnimationPack(chr, "None")
     if chr then
         if scriptedShirtGraphic and scriptedShirtGraphic.Parent then scriptedShirtGraphic:Destroy() end
@@ -201,6 +202,22 @@ local allActions = {
     ["Naked"] = { category = "Body", type = "Function", action = function(c, e) if not c then return end if e then local shirt = c:FindFirstChildOfClass("Shirt"); if shirt and not originalClothing.Shirt then originalClothing.Shirt = shirt; shirt.Parent = nil end; local pants = c:FindFirstChildOfClass("Pants"); if pants and not originalClothing.Pants then originalClothing.Pants = pants; pants.Parent = nil end; if #originalClothing.TShirts == 0 then for _, item in ipairs(c:GetChildren()) do if item:IsA("ShirtGraphic") and item ~= scriptedShirtGraphic then table.insert(originalClothing.TShirts, item); item.Parent = nil end end end else if originalClothing.Shirt and not originalClothing.Shirt.Parent then originalClothing.Shirt.Parent = c end; if originalClothing.Pants and not originalClothing.Pants.Parent then originalClothing.Pants.Parent = c end; for _, item in ipairs(originalClothing.TShirts) do if item and not item.Parent then item.Parent = c end end; originalClothing.Shirt, originalClothing.Pants, originalClothing.TShirts = nil, nil, {} end end },
     ["Remove Hair"] = { category = "Body", type = "Function", action = function(c, e) if not c then return end if e then for _, hair in ipairs(removedHairStorage) do if hair and not hair.Parent then hair:Destroy() end end; removedHairStorage = {}; for _, h in ipairs(c:GetChildren()) do if h:IsA("Accessory") and h.AccessoryType == Enum.AccessoryType.Hair then table.insert(removedHairStorage, h); h.Parent = nil end end else for _, hair in ipairs(removedHairStorage) do if hair and not hair.Parent then hair.Parent = c end end; removedHairStorage = {} end end },
     ["Epic Face"] = { category = "Faces", type = "Function", action = function(c, e) if not c then return end; local head = c:FindFirstChild("Head"); if not head then return end; local faceDecal = head:FindFirstChild("face"); if not faceDecal then return end; if e then if not originalFaceTexture then originalFaceTexture = faceDecal.Texture end; faceDecal.Texture = "http://www.roblox.com/asset/?id=42070872" else if originalFaceTexture then faceDecal.Texture = originalFaceTexture; originalFaceTexture = nil end end end },
+    ["Loop Happier Jump Emote"] = { category = "Animation", type = "Function", action = function(c, e)
+        if not c or not c:FindFirstChild("Humanoid") then return end
+        if e then
+            if not happierJumpAnimTrack then
+                local anim = Instance.new("Animation")
+                anim.AnimationId = "rbxassetid://15609995579"
+                happierJumpAnimTrack = c.Humanoid:LoadAnimation(anim)
+                happierJumpAnimTrack.Looped = true
+            end
+            happierJumpAnimTrack:Play()
+        else
+            if happierJumpAnimTrack then
+                happierJumpAnimTrack:Stop()
+            end
+        end
+    end },
     ["Remove Original Shirt"] = { category = "Outfit", type = "Function", action = function(c, e) if not c then return end; if e then local shirt = c:FindFirstChildOfClass("Shirt"); if shirt and not originalClothing.Shirt then originalClothing.Shirt = shirt; shirt.Parent = nil end else if originalClothing.Shirt and not originalClothing.Shirt.Parent then originalClothing.Shirt.Parent = c end; originalClothing.Shirt = nil end end },
     ["Remove Original Pants"] = { category = "Outfit", type = "Function", action = function(c, e) if not c then return end; if e then local pants = c:FindFirstChildOfClass("Pants"); if pants and not originalClothing.Pants then originalClothing.Pants = pants; pants.Parent = nil end else if originalClothing.Pants and not originalClothing.Pants.Parent then originalClothing.Pants.Parent = c end; originalClothing.Pants = nil end end },
     ["Remove Original T-Shirts"] = { category = "Outfit", type = "Function", action = function(c, e) if not c then return end; if e then originalClothing.TShirts = {}; for _, item in ipairs(c:GetChildren()) do if item:IsA("ShirtGraphic") and item ~= scriptedShirtGraphic then table.insert(originalClothing.TShirts, item); item.Parent = nil end end else for _, item in ipairs(originalClothing.TShirts) do if item and not item.Parent then item.Parent = c end end; originalClothing.TShirts = {} end end },
@@ -247,6 +264,7 @@ characterAddedConnection = Player.CharacterAdded:Connect(function(c)
     originalAnimations, originalLimbData, removedHairStorage = {}, {}, {}
     originalFaceTexture, scriptedShirtGraphic, originalPartColors = nil, nil, {}
     originalLimbColors, originalClothing = {}, { Shirt = nil, Pants = nil, TShirts = {}, Accessories = {} }
+    happierJumpAnimTrack = nil
     task.wait(0.2); captureOriginalColors(c, true); syncCharacterState(c)
 end)
 
@@ -296,15 +314,6 @@ end
 groupboxes.Body:AddButton("Reset Limb Colors", resetLimbColors)
 groupboxes.Clothing:AddDropdown("TShirtSelector", { Values = getTableKeys(clothingItems.TShirt), Default = "None", Text = "T-Shirt", Callback = function(s) applyTShirt(Player.Character, s) end })
 groupboxes.Animation:AddDropdown("AnimationPackSelector", { Values = getTableKeys(animationPacks), Default = "None", Text = "Animation Pack", Callback = function(p) applyAnimationPack(Player.Character, p) end })
-groupboxes.Animation:AddButton("Play Happier Jump Emote", function()
-    local char = Player.Character
-    if char and char:FindFirstChild("Humanoid") then
-        local anim = Instance.new("Animation")
-        anim.AnimationId = "rbxassetid://15609995579"
-        char.Humanoid:LoadAnimation(anim):Play()
-        Obsidian:Notify({ Title = "Emote", Description = "Playing 'Happier Jump'..."})
-    end
-end)
 
 -- Populate Morpher Tab
 local morpherGroup = morpherTab:AddLeftGroupbox("Character Morpher")
