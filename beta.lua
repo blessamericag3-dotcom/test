@@ -27,7 +27,7 @@ local Player = Players.LocalPlayer or Players.PlayerAdded:Wait()
 local Window = Obsidian:CreateWindow({
     Name = "Larps ┗ Paradise",
     Title = "Paradise Interface",
-    SubTitle = "By Custodian & AI",
+    SubTitle = "By Umbra & AI",
     Draggable = true,
     Footer = "Made By Gemini & Thank him"
 })
