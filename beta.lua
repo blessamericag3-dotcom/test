@@ -27,9 +27,9 @@ local Player = Players.LocalPlayer or Players.PlayerAdded:Wait()
 local Window = Obsidian:CreateWindow({
     Name = "Larps ┗ Paradise",
     Title = "Paradise Interface",
-    SubTitle = "by joseph & AI",
+    SubTitle = "By Umbra & AI",
     Draggable = true,
-    Footer = "Made By gemini & Thank him"
+    Footer = "Made By Gemini & Thank him"
 })
 
 -- Original state tracking variables
