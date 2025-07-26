@@ -1,6 +1,7 @@
 --[[
     Paradise Appearance Manager - Final Version
-    - FIX 21: Re-engineered the save/load system to correctly save and load morphed characters by storing the User ID in the config file.
+    - Added a button to play the "Happier Jump" emote.
+    - FIX 21: Re-engineered the save/load system to correctly handle morphed characters.
     - FIX 20: Corrected the morph function to properly handle BrickColor conversion and accessory parenting.
     - FIX 19: Re-implemented robust face-handling in the morph function.
 ]]
@@ -295,6 +296,15 @@ end
 groupboxes.Body:AddButton("Reset Limb Colors", resetLimbColors)
 groupboxes.Clothing:AddDropdown("TShirtSelector", { Values = getTableKeys(clothingItems.TShirt), Default = "None", Text = "T-Shirt", Callback = function(s) applyTShirt(Player.Character, s) end })
 groupboxes.Animation:AddDropdown("AnimationPackSelector", { Values = getTableKeys(animationPacks), Default = "None", Text = "Animation Pack", Callback = function(p) applyAnimationPack(Player.Character, p) end })
+groupboxes.Animation:AddButton("Play Happier Jump Emote", function()
+    local char = Player.Character
+    if char and char:FindFirstChild("Humanoid") then
+        local anim = Instance.new("Animation")
+        anim.AnimationId = "rbxassetid://15609995579"
+        char.Humanoid:LoadAnimation(anim):Play()
+        Obsidian:Notify({ Title = "Emote", Description = "Playing 'Happier Jump'..."})
+    end
+end)
 
 -- Populate Morpher Tab
 local morpherGroup = morpherTab:AddLeftGroupbox("Character Morpher")
@@ -378,6 +388,9 @@ if ThemeManager and SaveManager then
     
     local oldSaveFunc = SaveManager.Save
     function SaveManager:Save(name)
+        if currentMorphUserId then
+            resetAllToggles() -- Clear paradise toggles if saving a morph
+        end
         local success, err = oldSaveFunc(self, name)
         if success then
             local path = self.Folder .. "/settings/" .. name .. ".json"
