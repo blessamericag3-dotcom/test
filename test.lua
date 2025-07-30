@@ -1,8 +1,8 @@
 --[[
     Paradise Appearance Manager - Final Version
-    - FIX 22: Removed the aggressive character re-parenting technique to prevent triggering anti-cheat systems that monitor for suspicious character manipulation.
+    - Added a new "Full Outfits" section with a toggle for the "Scary Smile" outfit.
+    - FIX 22: Removed aggressive character re-parenting to prevent anti-cheat issues.
     - FIX 21: Re-engineered the save/load system to correctly handle morphed characters.
-    - FIX 20: Corrected the morph function for full compatibility.
 ]]
 
 if getgenv().ParadiseLoaded then return end
@@ -27,9 +27,9 @@ local Player = Players.LocalPlayer or Players.PlayerAdded:Wait()
 local Window = Obsidian:CreateWindow({
     Name = "Larps ┗ Paradise",
     Title = "Paradise Interface",
-    SubTitle = "by Umbra & AI",
+    SubTitle = "by joseph & AI",
     Draggable = true,
-    Footer = "Made By Gemini & Thank him"
+    Footer = "Made By gemini & Thank him"
 })
 
 -- Original state tracking variables
@@ -191,7 +191,6 @@ local function performFullReset(chr)
     originalLimbData = {}
     for _, hair in ipairs(removedHairStorage) do if hair and not hair.Parent and chr then hair.Parent = chr end end
     removedHairStorage = {}
-    -- The dangerous re-parenting was removed from here to prevent anti-cheat detection.
 end
 
 -- Action definitions
@@ -202,6 +201,38 @@ local allActions = {
     ["Remove Hair"] = { category = "Body", type = "Function", action = function(c, e) if not c then return end if e then for _, hair in ipairs(removedHairStorage) do if hair and not hair.Parent then hair:Destroy() end end; removedHairStorage = {}; for _, h in ipairs(c:GetChildren()) do if h:IsA("Accessory") and h.AccessoryType == Enum.AccessoryType.Hair then table.insert(removedHairStorage, h); h.Parent = nil end end else for _, hair in ipairs(removedHairStorage) do if hair and not hair.Parent then hair.Parent = c end end; removedHairStorage = {} end end },
     ["Epic Face"] = { category = "Faces", type = "Function", action = function(c, e) if not c then return end; local head = c:FindFirstChild("Head"); if not head then return end; local faceDecal = head:FindFirstChild("face"); if not faceDecal then return end; if e then if not originalFaceTexture then originalFaceTexture = faceDecal.Texture end; faceDecal.Texture = "http://www.roblox.com/asset/?id=42070872" else if originalFaceTexture then faceDecal.Texture = originalFaceTexture; originalFaceTexture = nil end end end },
     ["Loop Happier Jump Emote"] = { category = "Animation", type = "Function", action = function(c, e) if not (c and c:FindFirstChild("Humanoid")) then return end; if e then if not happierJumpAnimTrack then local anim = Instance.new("Animation"); anim.AnimationId = "rbxassetid://15609995579"; happierJumpAnimTrack = c.Humanoid:LoadAnimation(anim); happierJumpAnimTrack.Looped = true end; happierJumpAnimTrack:Play() else if happierJumpAnimTrack then happierJumpAnimTrack:Stop() end end end },
+    ["Scary Smile Outfit"] = { category = "Outfits", type = "Function", action = function(c, e)
+        if not c then return end
+        if e then
+            -- Clean existing items
+            for _, item in ipairs(c:GetChildren()) do
+                if item:IsA("Accessory") and item.Name == "ScarySmileAccessory" then item:Destroy() end
+                if item:IsA("Shirt") or item:IsA("Pants") then item:Destroy() end
+            end
+            if c.Head then for _, item in ipairs(c.Head:GetChildren()) do if item:IsA("Decal") then item:Destroy() end end end
+            
+            -- Build and add accessory
+            local acc = Instance.new("Accessory"); acc.Name = "ScarySmileAccessory"
+            local handle = Instance.new("Part", acc); handle.Name = "Handle"; handle.Size = Vector3.new(1, 1, 1); handle.Transparency = 1
+            local mesh = Instance.new("SpecialMesh", handle); mesh.Name = "ScarySmileMesh"; mesh.MeshType = Enum.MeshType.FileMesh; mesh.MeshId = "rbxassetid://111022241256851"; mesh.Scale = Vector3.new(1.03, 1.03, 1.03)
+            local decal = Instance.new("Decal", handle); decal.Name = "ScarySmileTexture"; decal.Texture = "http://www.roblox.com/asset/?id=120935988855219"; decal.Face = Enum.NormalId.Front
+            local faceAttachment = c.Head and (c.Head:FindFirstChild("FaceCenterAttachment") or c.Head:FindFirstChild("FaceFrontAttachment"))
+            if faceAttachment then local weld = Instance.new("Weld", handle); weld.Part0 = handle; weld.Part1 = c.Head; weld.C0 = faceAttachment.CFrame end
+            acc.Parent = c
+            
+            -- Apply clothing
+            local shirt = Instance.new("Shirt", c); shirt.ShirtTemplate = "http://www.roblox.com/asset/?id=11275376793"
+            local pants = Instance.new("Pants", c); pants.PantsTemplate = "http://www.roblox.com/asset/?id=5043452775"
+        else
+            -- Remove outfit
+            for _, item in ipairs(c:GetChildren()) do
+                if (item:IsA("Accessory") and item.Name == "ScarySmileAccessory") or (item:IsA("Shirt") and item.ShirtTemplate:find("11275376793")) or (item:IsA("Pants") and item.PantsTemplate:find("5043452775")) then
+                    item:Destroy()
+                end
+            end
+            syncCharacterState(c) -- Resync to restore previous state
+        end
+    end },
     ["Remove Original Shirt"] = { category = "Outfit", type = "Function", action = function(c, e) if not c then return end; if e then local shirt = c:FindFirstChildOfClass("Shirt"); if shirt and not originalClothing.Shirt then originalClothing.Shirt = shirt; shirt.Parent = nil end else if originalClothing.Shirt and not originalClothing.Shirt.Parent then originalClothing.Shirt.Parent = c end; originalClothing.Shirt = nil end end },
     ["Remove Original Pants"] = { category = "Outfit", type = "Function", action = function(c, e) if not c then return end; if e then local pants = c:FindFirstChildOfClass("Pants"); if pants and not originalClothing.Pants then originalClothing.Pants = pants; pants.Parent = nil end else if originalClothing.Pants and not originalClothing.Pants.Parent then originalClothing.Pants.Parent = c end; originalClothing.Pants = nil end end },
     ["Remove Original T-Shirts"] = { category = "Outfit", type = "Function", action = function(c, e) if not c then return end; if e then originalClothing.TShirts = {}; for _, item in ipairs(c:GetChildren()) do if item:IsA("ShirtGraphic") and item ~= scriptedShirtGraphic then table.insert(originalClothing.TShirts, item); item.Parent = nil end end else for _, item in ipairs(originalClothing.TShirts) do if item and not item.Parent then item.Parent = c end end; originalClothing.TShirts = {} end end },
@@ -266,6 +297,7 @@ local groupboxes = {
     Accessories = appearanceTab:AddLeftGroupbox("Accessories"), Body = appearanceTab:AddLeftGroupbox("Body Modifications"),
     Faces = appearanceTab:AddLeftGroupbox("Faces"), Clothing = appearanceTab:AddLeftGroupbox("Clothing (Visual)"),
     Outfit = appearanceTab:AddLeftGroupbox("Outfit Management (Original)"), Animation = appearanceTab:AddLeftGroupbox("Animation"),
+    Outfits = appearanceTab:AddLeftGroupbox("Full Outfits")
 }
 
 for name, data in pairs(allActions) do
